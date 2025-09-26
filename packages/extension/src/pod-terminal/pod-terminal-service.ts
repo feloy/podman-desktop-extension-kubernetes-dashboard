@@ -20,56 +20,58 @@ import { injectable } from 'inversify';
 import { KubeConfigSingleContext } from '/@/types/kubeconfig-single-context';
 import { RpcExtension } from '/@common/rpc/rpc';
 import { Exec, V1Status } from '@kubernetes/client-node';
-import { PassThrough } from 'node:stream';
 import { POD_TERMINAL_DATA } from '/@common/channels';
+import { BufferedStreamWriter, ExecStreamWriter, ResizableTerminalWriter, StringLineReader } from './exec-transmitter';
+import WebSocket from 'isomorphic-ws';
 
 @injectable()
 export class PodTerminalService {
-
-  #stdin = new PassThrough();
+  #stdin: StringLineReader;
+  #stdout: ExecStreamWriter;
+  #stderr: ExecStreamWriter;
+  #stdoutResizableTerminalWriter: ResizableTerminalWriter;
+  #stderrResizableTerminalWriter: ResizableTerminalWriter;
+  #state: string;
+  #conn: WebSocket.WebSocket;
 
   constructor(
     private readonly context: KubeConfigSingleContext,
     private readonly rpcExtension: RpcExtension,
+    private readonly podName: string,
+    private readonly namespace: string,
+    private readonly containerName: string,
   ) {}
 
-  async startTerminal(podName: string, namespace: string, containerName: string): Promise<void> {
-    console.log('startTerminal (service)', podName, namespace, containerName);
+  onData(channel: 'stdout' | 'stderr'): (data: Buffer) => void {
+    return (data: Buffer) => {
+      this.rpcExtension
+        .fire(POD_TERMINAL_DATA, {
+          podName: this.podName,
+          namespace: this.namespace,
+          containerName: this.containerName,
+          channel,
+          data,
+        })
+        .catch(console.error);
+    };
+  }
+
+  async startTerminal(onClose: () => Promise<void>): Promise<void> {
+    this.#stdoutResizableTerminalWriter = new ResizableTerminalWriter(new BufferedStreamWriter(this.onData('stdout')));
+    this.#stderrResizableTerminalWriter = new ResizableTerminalWriter(new BufferedStreamWriter(this.onData('stderr')));
+    this.#stdout = new ExecStreamWriter(this.#stdoutResizableTerminalWriter);
+    this.#stderr = new ExecStreamWriter(this.#stderrResizableTerminalWriter);
+    this.#stdin = new StringLineReader();
+
     const exec = new Exec(this.context.getKubeConfig());
-    
-    const stdout = new PassThrough();
-    const stderr = new PassThrough();
-
-    stdout.on('data', (data: Buffer) => {
-      this.rpcExtension
-        .fire(POD_TERMINAL_DATA, {
-          podName,
-          namespace,
-          containerName,
-          channel: 'stdout',
-          data,
-        })
-        .catch(console.error);
-    });
-    stderr.on('data', (data: Buffer) => {
-      this.rpcExtension
-        .fire(POD_TERMINAL_DATA, {
-          podName,
-          namespace,
-          containerName,
-          channel: 'stderr',
-          data,
-        })
-        .catch(console.error);
-    });
-
-    const conn = await exec.exec(
-      namespace,
-      podName,
-      containerName,
+    console.log('==> startTerminal (service)');
+    this.#conn = await exec.exec(
+      this.namespace,
+      this.podName,
+      this.containerName,
       ['/bin/sh', '-c', 'if command -v bash >/dev/null 2>&1; then bash; else sh; fi'],
-      stdout,
-      stderr,
+      this.#stdout,
+      this.#stderr,
       this.#stdin,
       true,
       (_: V1Status) => {
@@ -79,16 +81,36 @@ export class PodTerminalService {
         // proper reconnect client terminal. at this moment we ignore status and rely on websocket close event
       },
     );
-    conn.on('close', () => {
+    this.#conn.on('close', (): void => {
       console.log('==> terminal conn closed');
-      //onClose();
-      //this.#execs.delete(`${podName}-${containerName}`);
+      this.#stdoutResizableTerminalWriter.end();
+      this.#stderrResizableTerminalWriter.end();
+      this.#stdout.end();
+      this.#stderr.end();
+      this.#stdin.destroy();
+      onClose().catch(console.error);
     });
+    console.log('==> startTerminal (service) done');
   }
 
   async sendData(data: string): Promise<void> {
-    this.#stdin.write(data);
+    this.#stdin.readLine(data);
   }
 
-  stopTerminal(): void {}
+  async resizeTerminal(cols: number, rows: number): Promise<void> {
+    this.#stdoutResizableTerminalWriter.resize({ width: cols, height: rows });
+    this.#stderrResizableTerminalWriter.resize({ width: cols, height: rows });
+  }
+
+  async saveState(state: string): Promise<void> {
+    this.#state = state;
+  }
+
+  async restoreState(): Promise<string> {
+    return this.#state;
+  }
+
+  stopTerminal(): void {
+    this.#conn.close();
+  }
 }

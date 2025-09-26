@@ -28,7 +28,14 @@ import { KubeConfig } from '@kubernetes/client-node';
 import { ContextsStatesDispatcher } from '/@/manager/contexts-states-dispatcher';
 import { InversifyBinding } from '/@/inject/inversify-binding';
 import type { Container } from 'inversify';
-import { API_CONTEXTS, API_POD_LOGS, API_POD_TERMINALS, API_PORT_FORWARD, API_SUBSCRIBE, API_SYSTEM } from '/@common/channels';
+import {
+  API_CONTEXTS,
+  API_POD_LOGS,
+  API_POD_TERMINALS,
+  API_PORT_FORWARD,
+  API_SUBSCRIBE,
+  API_SYSTEM,
+} from '/@common/channels';
 import { SystemApiImpl } from './manager/system-api';
 import { PortForwardApiImpl } from './manager/port-forward-api-impl';
 import { PortForwardServiceProvider } from './port-forward/port-forward-service';

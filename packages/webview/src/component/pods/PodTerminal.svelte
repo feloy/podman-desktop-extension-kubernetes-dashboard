@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { V1Pod } from '@kubernetes/client-node';
-import { getContext, onDestroy, onMount } from 'svelte';
+import { getContext, onDestroy, onMount, tick } from 'svelte';
 import { Streams } from '/@/stream/streams';
 import type { IDisposable } from 'monaco-editor';
 import { Terminal } from '@xterm/xterm';
@@ -9,6 +9,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Remote } from '/@/remote/remote';
 import { API_POD_TERMINALS } from '/@common/channels';
+import { Disposable } from '/@common/types/disposable';
 
 interface Props {
   object: V1Pod;
@@ -23,28 +24,22 @@ let disposables: IDisposable[] = [];
 
 let terminalXtermDiv: HTMLElement = document.createElement('div');
 let shellTerminal: Terminal;
+let serializeAddon: SerializeAddon;
+let fitAddon: FitAddon;
 
 onMount(async () => {
+  console.log('==> PodTerminal onMount');
   const podName = object.metadata?.name ?? '';
   const namespace = object.metadata?.namespace ?? '';
   const containerName = object.spec?.containers?.[0]?.name ?? '';
-  await initializeNewTerminal(terminalXtermDiv, podName, namespace, containerName);
-  disposables.push(await streams.streamPodTerminals.subscribe(
-    podName, 
-    namespace, 
-    containerName,
-    chunk => {
-      if (chunk.podName !== podName || chunk.namespace !== namespace || chunk.containerName !== containerName) {
-        return;
-      }
-      shellTerminal.write(chunk.data);
-    },
-  ));
-});
+  const savedState = await podTerminalsApi.restoreState(podName, namespace, containerName);
 
-onDestroy(() => {
-  disposables.forEach(disposable => disposable.dispose());
-  disposables = [];
+  disposables.push(await initializeNewTerminal(terminalXtermDiv, podName, namespace, containerName));
+
+  if (savedState) {
+    shellTerminal.write(savedState);
+    shellTerminal.focus();
+  }
 });
 
 async function initializeNewTerminal(
@@ -52,9 +47,9 @@ async function initializeNewTerminal(
   podName: string,
   namespace: string,
   containerName: string,
-): Promise<void> {
-  if (!terminalXtermDiv) {
-    return;
+): Promise<IDisposable> {
+  if (!container) {
+    return Disposable.create(() => {});
   }
   shellTerminal = new Terminal({
     fontSize: 10,
@@ -62,16 +57,52 @@ async function initializeNewTerminal(
     screenReaderMode: true,
     theme: getTerminalTheme(),
   });
-  const fitAddon = new FitAddon();
-  const serializeAddon = new SerializeAddon();
+
+  disposables.push(
+    await streams.streamPodTerminals.subscribe(podName, namespace, containerName, chunk => {
+      if (chunk.podName !== podName || chunk.namespace !== namespace || chunk.containerName !== containerName) {
+        return;
+      }
+      shellTerminal.write(chunk.data);
+    }),
+  );
+
+  fitAddon = new FitAddon();
+  serializeAddon = new SerializeAddon();
   shellTerminal.loadAddon(fitAddon);
   shellTerminal.loadAddon(serializeAddon);
   shellTerminal.open(container);
-  fitAddon.fit();
-  shellTerminal.onData(data => {
-    podTerminalsApi.sendData(podName, namespace, containerName, data);
+  disposables.push(
+    shellTerminal.onData(data => {
+      podTerminalsApi.sendData(podName, namespace, containerName, data);
+    }),
+  );
+
+  const resize = async (): Promise<void> => {
+    fitAddon.fit();
+    await podTerminalsApi.resizeTerminal(podName, namespace, containerName, shellTerminal.cols, shellTerminal.rows);
+  };
+  const onResize = () => {
+    resize().catch(console.error);
+  };
+  window.addEventListener('resize', onResize);
+  await resize();
+
+  return Disposable.create(() => {
+    const terminalContent = serializeAddon.serialize();
+    podTerminalsApi.saveState(podName, namespace, containerName, terminalContent);
+    window.removeEventListener('resize', onResize);
+    shellTerminal.dispose();
+    fitAddon.dispose();
+    serializeAddon.dispose();
   });
 }
+
+onDestroy(() => {
+  console.log('==> PodTerminal onDestroy');
+  disposables.forEach(disposable => disposable.dispose());
+  disposables = [];
+});
 </script>
 
-<div class="h-full w-full p-[5px] pr-0 bg-[var(--pd-terminal-background)]" bind:this={terminalXtermDiv}></div>
+<div class="h-full p-[5px] pr-0 bg-[var(--pd-terminal-background)]" bind:this={terminalXtermDiv}></div>

@@ -45,7 +45,6 @@ export class StreamPodTerminals {
     await this.#podTerminalsApi.startTerminal(podName, namespace, containerName);
     return Disposable.create(() => {
       disposable.dispose();
-      //this.#podTerminalsApi.stopTerminal(podName, namespace, containerName).catch(console.error);
     });
   }
 }

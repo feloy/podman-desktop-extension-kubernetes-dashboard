@@ -21,4 +21,7 @@ export const PodTerminalsApi = Symbol.for('PodTerminalsApi');
 export interface PodTerminalsApi {
   startTerminal(podName: string, namespace: string, containerName: string): Promise<void>;
   sendData(podName: string, namespace: string, containerName: string, data: string): Promise<void>;
+  resizeTerminal(podName: string, namespace: string, containerName: string, cols: number, rows: number): Promise<void>;
+  saveState(podName: string, namespace: string, containerName: string, state: string): Promise<void>;
+  restoreState(podName: string, namespace: string, containerName: string): Promise<string>;
 }

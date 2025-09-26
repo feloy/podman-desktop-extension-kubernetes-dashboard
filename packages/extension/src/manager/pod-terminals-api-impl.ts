@@ -24,8 +24,8 @@ import { ContextsManager } from './contexts-manager';
 import { RpcExtension } from '/@common/rpc/rpc';
 
 type PodTerminalInstance = {
-  counter: number;
   service: PodTerminalService;
+  connected: boolean;
 };
 
 @injectable()
@@ -42,16 +42,43 @@ export class PodTerminalsApiImpl implements PodTerminalsApi, IDisposable {
     if (!this.contextsManager.currentContext) {
       throw new Error('No current context found');
     }
-    const instance = this.#instances.get(this.getKey(podName, namespace, containerName)) ?? {
-      counter: 0,
-      service: new PodTerminalService(this.contextsManager.currentContext, this.rpcExtension),
-    };
-    instance.counter++;
-    if (instance.counter === 1) {
-      await instance.service.startTerminal(podName, namespace, containerName);
+    let instance: PodTerminalInstance | undefined = this.#instances.get(this.getKey(podName, namespace, containerName));
+
+    if (!instance) {
+      instance = {
+        service: new PodTerminalService(
+          this.contextsManager.currentContext,
+          this.rpcExtension,
+          podName,
+          namespace,
+          containerName,
+        ),
+        connected: false,
+      };
+      this.#instances.set(this.getKey(podName, namespace, containerName), instance);
     }
-    this.#instances.set(this.getKey(podName, namespace, containerName), instance);
+    console.log('startTerminal, instance connected?', instance?.connected);
+
+    if (!instance.connected) {
+      await instance.service.startTerminal(async (): Promise<void> => {
+        if (instance) {
+          instance.connected = false;
+        }
+      });
+      instance.connected = true;
+    }
   }
+
+  //  async stopTerminal(podName: string, namespace: string, containerName: string): Promise<void> {
+  //    const instance = this.#instances.get(this.getKey(podName, namespace, containerName));
+  //    if (instance) {
+  //      instance.counter--;
+  //      if (instance.counter === 0) {
+  //        this.#instances.delete(this.getKey(podName, namespace, containerName));
+  //        instance.service.stopTerminal();
+  //      }
+  //    }
+  //  }
 
   async sendData(podName: string, namespace: string, containerName: string, data: string): Promise<void> {
     const instance = this.#instances.get(this.getKey(podName, namespace, containerName));
@@ -60,10 +87,38 @@ export class PodTerminalsApiImpl implements PodTerminalsApi, IDisposable {
     }
   }
 
+  async resizeTerminal(
+    podName: string,
+    namespace: string,
+    containerName: string,
+    cols: number,
+    rows: number,
+  ): Promise<void> {
+    const instance = this.#instances.get(this.getKey(podName, namespace, containerName));
+    if (instance) {
+      await instance.service.resizeTerminal(cols, rows);
+    }
+  }
+
+  async saveState(podName: string, namespace: string, containerName: string, state: string): Promise<void> {
+    const instance = this.#instances.get(this.getKey(podName, namespace, containerName));
+    if (instance) {
+      await instance.service.saveState(state);
+    }
+  }
+
+  async restoreState(podName: string, namespace: string, containerName: string): Promise<string> {
+    const instance = this.#instances.get(this.getKey(podName, namespace, containerName));
+    if (instance) {
+      return await instance.service.restoreState();
+    }
+    return '';
+  }
+
   getKey(podName: string, namespace: string, containerName: string): string {
     return `${podName}|${namespace}|${containerName}`;
   }
-  
+
   dispose(): void {
     this.#instances.forEach(instance => instance.service.stopTerminal());
     this.#instances.clear();
