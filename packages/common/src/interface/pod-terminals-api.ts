@@ -16,17 +16,8 @@
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
 
-import { ContainerModule } from 'inversify';
+export const PodTerminalsApi = Symbol.for('PodTerminalsApi');
 
-import { Streams } from './streams';
-import { StreamPodLogs } from './pod-logs';
-import { StreamPodTerminals } from './pod-terminals';
-
-const streamsModule = new ContainerModule(options => {
-  options.bind(Streams).toSelf().inSingletonScope();
-
-  options.bind(StreamPodLogs).toSelf().inSingletonScope();
-  options.bind(StreamPodTerminals).toSelf().inSingletonScope();
-});
-
-export { streamsModule };
+export interface PodTerminalsApi {
+  startTerminal(podName: string, namespace: string, containerName: string): Promise<void>;
+}
