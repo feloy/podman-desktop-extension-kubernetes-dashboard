@@ -53,6 +53,13 @@ export class PodTerminalsApiImpl implements PodTerminalsApi, IDisposable {
     this.#instances.set(this.getKey(podName, namespace, containerName), instance);
   }
 
+  async sendData(podName: string, namespace: string, containerName: string, data: string): Promise<void> {
+    const instance = this.#instances.get(this.getKey(podName, namespace, containerName));
+    if (instance) {
+      await instance.service.sendData(data);
+    }
+  }
+
   getKey(podName: string, namespace: string, containerName: string): string {
     return `${podName}|${namespace}|${containerName}`;
   }

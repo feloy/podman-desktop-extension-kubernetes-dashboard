@@ -16,9 +16,10 @@
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
 
-export const PodTerminalsApi = Symbol.for('PodTerminalsApi');
-
-export interface PodTerminalsApi {
-  startTerminal(podName: string, namespace: string, containerName: string): Promise<void>;
-  sendData(podName: string, namespace: string, containerName: string, data: string): Promise<void>;
+export interface PodTerminalChunk {
+  podName: string;
+  namespace: string;
+  containerName: string;
+  channel: 'stdout' | 'stderr';
+  data: Buffer;
 }
