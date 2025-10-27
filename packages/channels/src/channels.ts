@@ -40,6 +40,7 @@ import type {
   ContextsPermissionsInfo,
   ResourcesCountInfo,
 } from '@podman-desktop/kubernetes-dashboard-extension-api';
+import type { DebuggerInfo } from '/@/model/debugger-info';
 
 // RPC channels (used by the webview to send requests to the extension)
 export const API_CONTEXTS = createRpcChannel<ContextsApi>('ContextsApi');
@@ -61,6 +62,7 @@ export const RESOURCE_EVENTS = createRpcChannel<ResourceEventsInfo>('ResourceEve
 export const PORT_FORWARDS = createRpcChannel<PortForwardsInfo>('PortForwards');
 export const ENDPOINTS = createRpcChannel<EndpointsInfo>('Endpoints');
 export const KUBERNETES_PROVIDERS = createRpcChannel<KubernetesProvidersInfo>('KubernetesProviders');
+export const DEBUGGER = createRpcChannel<DebuggerInfo>('Debugger');
 
 // Channels fot streams
 export const API_POD_LOGS = createRpcChannel<PodLogsApi>('PodLogsApi');
