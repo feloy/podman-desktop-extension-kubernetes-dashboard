@@ -26,7 +26,6 @@ import {
   V1Ingress,
   V1Status,
   type KubernetesObject,
-  type ObjectCache,
 } from '@kubernetes/client-node';
 
 import type {
@@ -97,7 +96,6 @@ export class ContextsManager implements ContextsApi {
   #healthCheckers: Map<string, ContextHealthChecker>;
   #permissionsCheckers: ContextPermissionsChecker[];
   #informers: ContextResourceRegistry<ResourceInformer<KubernetesObject>>;
-  #objectCaches: ContextResourceRegistry<ObjectCache<KubernetesObject>>;
   #currentContext?: KubeConfigSingleContext;
   #currentKubeConfig: KubeConfig;
 
@@ -145,7 +143,6 @@ export class ContextsManager implements ContextsApi {
     this.#healthCheckers = new Map<string, ContextHealthChecker>();
     this.#permissionsCheckers = [];
     this.#informers = new ContextResourceRegistry<ResourceInformer<KubernetesObject>>();
-    this.#objectCaches = new ContextResourceRegistry<ObjectCache<KubernetesObject>>();
     this.#dispatcher = new ContextsDispatcher();
     this.#dispatcher.onUpdate(this.onUpdate.bind(this));
     this.#dispatcher.onDelete(this.onDelete.bind(this));
@@ -234,17 +231,17 @@ export class ContextsManager implements ContextsApi {
   }
 
   getResourcesCount(): ResourceCount[] {
-    return this.#objectCaches.getAll().map(informer => ({
+    return this.#informers.getAll().map(informer => ({
       contextName: informer.contextName,
       resourceName: informer.resourceName,
-      count: informer.value.list().length,
+      count: informer.value.getCache().list().length,
     }));
   }
 
   // getActiveResourcesCount returns the count of filtered resources for each context/resource
   // when isActive is declared for a resource, and filtered with isActive
   getActiveResourcesCount(): ResourceCount[] {
-    return this.#objectCaches
+    return this.#informers
       .getAll()
       .map(informer => {
         const isActive = this.#resourceFactoryHandler.getResourceFactoryByResourceName(informer.resourceName)?.isActive;
@@ -252,7 +249,7 @@ export class ContextsManager implements ContextsApi {
           ? {
               contextName: informer.contextName,
               resourceName: informer.resourceName,
-              count: informer.value.list().filter(isActive).length,
+              count: informer.value.getCache().list().filter(isActive).length,
             }
           : undefined;
       })
@@ -271,7 +268,7 @@ export class ContextsManager implements ContextsApi {
       requestContextName = currentContextName;
     }
 
-    const cache = this.#objectCaches.get(requestContextName, resourceName);
+    const cache = this.#informers.get(requestContextName, resourceName)?.getCache();
     return cache?.list() ?? [];
   }
 
@@ -281,14 +278,15 @@ export class ContextsManager implements ContextsApi {
     name: string,
     namespace?: string,
   ): KubernetesObject | undefined {
-    const value = this.#objectCaches.get(contextName, resourceName);
-    return value?.get(name, namespace);
+    const cache = this.#informers.get(contextName, resourceName)?.getCache();
+    return cache?.get(name, namespace);
   }
 
   getResourceEvents(contextName: string, uid: string): CoreV1Event[] {
     return (
-      this.#objectCaches
+      this.#informers
         .get(contextName, 'events')
+        ?.getCache()
         ?.list()
         .filter(o => this.isCoreV1Event(o))
         .filter(event => event.involvedObject.uid === uid) ?? []
@@ -359,7 +357,7 @@ export class ContextsManager implements ContextsApi {
         contextName: informer.contextName,
         resourceName: informer.resourceName,
         isOffline: informer.value.isOffline(),
-        objectsCount: this.#objectCaches.get(informer.contextName, informer.resourceName)?.list().length,
+        objectsCount: this.#informers.get(informer.contextName, informer.resourceName)?.getCache()?.list().length,
       })),
     };
   }
@@ -440,7 +438,7 @@ export class ContextsManager implements ContextsApi {
             });
             informer.onOffline((e: OfflineEvent) => {
               this.#onOfflineChange.fire();
-              this.#objectCaches.removeForContext(e.kubeconfig.getKubeConfig().currentContext);
+              this.#informers.removeForContext(e.kubeconfig.getKubeConfig().currentContext);
             });
             informer.onObjectDeleted((e: ObjectDeletedEvent) => {
               this.#onObjectDeleted.fire({
@@ -450,8 +448,7 @@ export class ContextsManager implements ContextsApi {
                 namespace: e.namespace,
               });
             });
-            const cache = informer.start();
-            this.#objectCaches.set(contextName, resource, cache);
+            informer.start();
           }
         });
         await newPermissionChecker.start();
@@ -479,7 +476,6 @@ export class ContextsManager implements ContextsApi {
       informer.dispose();
     }
     this.#informers.removeForContext(contextName);
-    this.#objectCaches.removeForContext(contextName);
   }
 
   // returns true if at least one informer for the context is 'offline'
