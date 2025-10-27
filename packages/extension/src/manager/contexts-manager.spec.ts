@@ -51,6 +51,7 @@ const resource4RestartObjectMock = vi.fn();
 const resource5ReadObjectMock = vi.fn();
 
 const createdResource1InformerMock = {
+  getCache: vi.fn(),
   onCacheUpdated: vi.fn(),
   onOffline: vi.fn(),
   onObjectDeleted: vi.fn(),
@@ -67,6 +68,7 @@ const createdResource1bInformerMock = {
 } as unknown as ResourceInformer<KubernetesObject>;
 
 const createdEventInformerMock = {
+  getCache: vi.fn(),
   onCacheUpdated: vi.fn(),
   onOffline: vi.fn(),
   onObjectDeleted: vi.fn(),
@@ -781,12 +783,12 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
 
     test('getResourcesCount', async () => {
       const listMock = vi.fn();
-      vi.mocked(createdResource1InformerMock.start).mockReturnValue({
+      vi.mocked(createdResource1InformerMock.getCache).mockReturnValue({
         list: listMock,
         get: vi.fn(),
       } as ObjectCache<KubernetesObject>);
       const listEventMock = vi.fn().mockReturnValue([{}]);
-      vi.mocked(createdEventInformerMock.start).mockReturnValue({
+      vi.mocked(createdEventInformerMock.getCache).mockReturnValue({
         list: listEventMock,
         get: vi.fn(),
       } as ObjectCache<CoreV1Event>);
@@ -814,7 +816,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
 
     test('getActiveResourcesCount', async () => {
       const listMock = vi.fn();
-      vi.mocked(createdResource1InformerMock.start).mockReturnValue({
+      vi.mocked(createdResource1InformerMock.getCache).mockReturnValue({
         list: listMock,
         get: vi.fn(),
       } as ObjectCache<KubernetesObject>);
@@ -844,7 +846,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
 
     test('getResources with explicit context name', async () => {
       const listMock = vi.fn();
-      vi.mocked(createdResource1InformerMock.start).mockReturnValue({
+      vi.mocked(createdResource1InformerMock.getCache).mockReturnValue({
         list: listMock,
         get: vi.fn(),
       } as ObjectCache<KubernetesObject>);
@@ -859,7 +861,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
 
     test('getResources without context names', async () => {
       const listMock = vi.fn();
-      vi.mocked(createdResource1InformerMock.start).mockReturnValue({
+      vi.mocked(createdResource1InformerMock.getCache).mockReturnValue({
         list: listMock,
         get: vi.fn(),
       } as ObjectCache<KubernetesObject>);
@@ -873,7 +875,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
 
     test('one offline informer clears all caches', async () => {
       const listMock = vi.fn();
-      vi.mocked(createdResource1InformerMock.start).mockReturnValue({
+      vi.mocked(createdResource1InformerMock.getCache).mockReturnValue({
         list: listMock,
         get: vi.fn(),
       } as ObjectCache<KubernetesObject>);
@@ -919,7 +921,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
     test('getResourceDetails with existing resource', async () => {
       const listMock = vi.fn();
       const getMock = vi.fn();
-      vi.mocked(createdResource1InformerMock.start).mockReturnValue({
+      vi.mocked(createdResource1InformerMock.getCache).mockReturnValue({
         list: listMock,
         get: getMock,
       } as ObjectCache<KubernetesObject>);
@@ -934,7 +936,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
     test('getResourceDetails with non-existing resource', async () => {
       const listMock = vi.fn();
       const getMock = vi.fn();
-      vi.mocked(createdResource1InformerMock.start).mockReturnValue({
+      vi.mocked(createdResource1InformerMock.getCache).mockReturnValue({
         list: listMock,
         get: getMock,
       } as ObjectCache<KubernetesObject>);
@@ -951,7 +953,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
         list: vi.fn(),
         get: vi.fn(),
       } as ObjectCache<CoreV1Event>;
-      vi.mocked(createdEventInformerMock.start).mockReturnValue(cacheMock);
+      vi.mocked(createdEventInformerMock.getCache).mockReturnValue(cacheMock);
       const event1: CoreV1Event = { metadata: {}, involvedObject: { uid: 'uid1' } };
       vi.mocked(cacheMock.list).mockReturnValue([event1]);
       vi.mocked(cacheMock.get).mockReturnValue(event1);
