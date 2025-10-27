@@ -98,6 +98,7 @@ export class ContextsManager implements ContextsApi {
   #informers: ContextResourceRegistry<ResourceInformer<KubernetesObject>>;
   #currentContext?: KubeConfigSingleContext;
   #currentKubeConfig: KubeConfig;
+  #stepByStepMode: boolean;
 
   #onContextHealthStateChange = new Emitter<ContextHealthState>();
   onContextHealthStateChange: Event<ContextHealthState> = this.#onContextHealthStateChange.event;
@@ -130,12 +131,16 @@ export class ContextsManager implements ContextsApi {
   #onEndpointsChange = new Emitter<void>();
   onEndpointsChange: Event<void> = this.#onEndpointsChange.event;
 
+  #onStepByStepChange = new Emitter<void>();
+  onStepByStepChange: Event<void> = this.#onStepByStepChange.event;
+
   @inject(TelemetryLoggerSymbol)
   protected telemetryLogger: TelemetryLogger;
 
   constructor() {
     this.#currentKubeConfig = new KubeConfig();
     this.#resourceFactoryHandler = new ResourceFactoryHandler();
+    this.#stepByStepMode = false;
     for (const resourceFactory of this.getResourceFactories()) {
       this.#resourceFactoryHandler.add(resourceFactory);
     }
@@ -458,6 +463,7 @@ export class ContextsManager implements ContextsApi {
   }
 
   protected stopMonitoring(contextName: string): void {
+    this.#stepByStepMode = false;
     const healthChecker = this.#healthCheckers.get(contextName);
     healthChecker?.dispose();
     this.#healthCheckers.delete(contextName);
@@ -476,6 +482,7 @@ export class ContextsManager implements ContextsApi {
       informer.dispose();
     }
     this.#informers.removeForContext(contextName);
+    this.setStepByStepMode(false).catch((e: unknown) => console.error('error setting step by step mode', e));
   }
 
   // returns true if at least one informer for the context is 'offline'
@@ -877,5 +884,20 @@ export class ContextsManager implements ContextsApi {
     const yamlString = jsYaml.dump(JSON.parse(jsonString));
     const kubeconfigUri = kubernetes.getKubeconfig();
     await writeFile(kubeconfigUri.path, yamlString);
+  }
+
+  async setStepByStepMode(stepByStep: boolean): Promise<void> {
+    if (this.#stepByStepMode === stepByStep) {
+      return;
+    }
+    this.#stepByStepMode = stepByStep;
+    for (const informer of this.#informers.getAll()) {
+      informer.value.setStepByStepMode(stepByStep);
+    }
+    this.#onStepByStepChange.fire();
+  }
+
+  isStepByStepMode(): boolean {
+    return this.#stepByStepMode;
   }
 }

@@ -22,6 +22,7 @@ export * from './context-resource-events';
 export * from './context-resources-details';
 export * from './context-resources-items';
 export * from './current-context-info';
+export * from './debugger-info';
 export * from './endpoint';
 export * from './endpoints-info';
 export * from './endpoints-options';

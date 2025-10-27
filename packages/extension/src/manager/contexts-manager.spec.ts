@@ -51,6 +51,7 @@ const resource4RestartObjectMock = vi.fn();
 const resource5ReadObjectMock = vi.fn();
 
 const createdResource1InformerMock = {
+  setStepByStepMode: vi.fn(),
   getCache: vi.fn(),
   onCacheUpdated: vi.fn(),
   onOffline: vi.fn(),
@@ -68,6 +69,7 @@ const createdResource1bInformerMock = {
 } as unknown as ResourceInformer<KubernetesObject>;
 
 const createdEventInformerMock = {
+  setStepByStepMode: vi.fn(),
   getCache: vi.fn(),
   onCacheUpdated: vi.fn(),
   onOffline: vi.fn(),
@@ -982,6 +984,18 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
       // called twice: on resource1 for each context
       expect(createdResource1InformerMock.start).toHaveBeenCalledTimes(2);
       expect(onObjectDeletedCB).toHaveBeenCalledTimes(2);
+    });
+
+    describe('step by step mode is set', () => {
+      beforeEach(async () => {
+        await manager.update(kc);
+        await manager.setStepByStepMode(true);
+      });
+
+      test('calls setStepByStepMode on informers', async () => {
+        expect(createdResource1InformerMock.setStepByStepMode).toHaveBeenCalledWith(true);
+        expect(createdEventInformerMock.setStepByStepMode).toHaveBeenCalledWith(true);
+      });
     });
   });
 });
@@ -1990,5 +2004,43 @@ test('applyResources sends telemetry', async () => {
   expect(telemetryLoggerMock.logUsage).toHaveBeenCalledWith('apply.resources', {
     manifestsSize: 1,
     kinds: 'Namespace',
+  });
+});
+
+describe('step by step mode', () => {
+  test('is not set by default', () => {
+    const manager = new TestContextsManager();
+    expect(manager.isStepByStepMode()).toBe(false);
+  });
+  test('can be set', async () => {
+    const manager = new TestContextsManager();
+    await manager.setStepByStepMode(true);
+    expect(manager.isStepByStepMode()).toBe(true);
+  });
+
+  test('can be unset', async () => {
+    const manager = new TestContextsManager();
+    await manager.setStepByStepMode(true);
+    expect(manager.isStepByStepMode()).toBe(true);
+    await manager.setStepByStepMode(false);
+    expect(manager.isStepByStepMode()).toBe(false);
+  });
+
+  test('dispatch step by step mode change', async () => {
+    const manager = new TestContextsManager();
+    const onStepByStepChangeCB: (e: void) => unknown = vi.fn();
+    manager.onStepByStepChange(onStepByStepChangeCB);
+    await manager.setStepByStepMode(true);
+    expect(onStepByStepChangeCB).toHaveBeenCalledWith(undefined);
+    await manager.setStepByStepMode(false);
+    expect(onStepByStepChangeCB).toHaveBeenCalledWith(undefined);
+  });
+
+  test('step by step mode is unset when context monitoring is stopped', async () => {
+    const manager = new TestContextsManager();
+    await manager.setStepByStepMode(true);
+    expect(manager.isStepByStepMode()).toBe(true);
+    manager.stopMonitoring('ctx1');
+    expect(manager.isStepByStepMode()).toBe(false);
   });
 });
