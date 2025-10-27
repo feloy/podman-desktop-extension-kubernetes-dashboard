@@ -30,6 +30,7 @@ import {
   RESOURCES_COUNT,
   UPDATE_RESOURCE,
   KUBERNETES_PROVIDERS,
+  DEBUGGER,
 } from '@kubernetes-dashboard/channels';
 
 import type { ContextHealthState } from './context-health-checker.js';
@@ -111,6 +112,9 @@ export class ContextsStatesDispatcher {
     });
     this.kubernetesProvidersManager.onKubernetesProvidersChange(async () => {
       await this.dispatch(KUBERNETES_PROVIDERS);
+    });
+    this.manager.onStepByStepChange(async () => {
+      await this.dispatch(DEBUGGER);
     });
 
     this.#subscribers.forEach(subscriber => {
