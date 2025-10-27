@@ -29,6 +29,7 @@ import { StatePortForwardsInfo } from './port-forwards.svelte';
 import { StateEndpointsInfo } from './endpoints.svelte';
 import { StateAvailableContextsInfo } from './available-contexts.svelte';
 import { StateKubernetesProvidersInfo } from './kubernetes-providers.svelte';
+import { StateDebuggerInfo } from '/@/state/debugger.svelte';
 
 @injectable()
 export class States {
@@ -114,5 +115,12 @@ export class States {
 
   get stateKubernetesProvidersInfoUI(): StateKubernetesProvidersInfo {
     return this._stateKubernetesProvidersInfoUI;
+  }
+
+  @inject(StateDebuggerInfo)
+  private _stateDebuggerInfoUI: StateDebuggerInfo;
+
+  get stateDebuggerInfoUI(): StateDebuggerInfo {
+    return this._stateDebuggerInfoUI;
   }
 }
