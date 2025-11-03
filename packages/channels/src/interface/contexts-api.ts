@@ -27,4 +27,5 @@ export interface ContextsApi {
   restartObject(kind: string, name: string, namespace: string): Promise<void>;
   applyResources(yamlDocuments: string): Promise<void>;
   setStepByStepMode(stepByStep: boolean): Promise<void>;
+  advanceOneStep(): Promise<void>;
 }

@@ -85,6 +85,16 @@ class StepByStepCache<T extends KubernetesObject> implements ObjectCache<T> {
   list(): T[] {
     return Array.from(this.#cache.values());
   }
+
+  event(type: 'update' | 'delete' | 'add', object: T): void {
+    if (type === 'update') {
+      this.#cache.set(object.metadata?.name ?? '', object);
+    } else if (type === 'delete') {
+      this.#cache.delete(object.metadata?.name ?? '');
+    } else if (type === 'add') {
+      this.#cache.set(object.metadata?.name ?? '', object);
+    }
+  }
 }
 
 export class ResourceInformer<T extends KubernetesObject> implements Disposable {
@@ -273,5 +283,24 @@ export class ResourceInformer<T extends KubernetesObject> implements Disposable 
       resourceName: this.#pluralName,
       countChanged: false,
     });
+  }
+
+  advanceOneStep(step: StepEvent): void {
+    if (this.#stepByStepMode) {
+      this.#stepByStepCache?.event(step.type, step.object as T);
+      this.#onCacheUpdated.fire({
+        kubeconfig: this.#kubeConfig,
+        resourceName: this.#pluralName,
+        countChanged: ['add', 'delete'].includes(step.type),
+      });
+      if (step.type === 'delete') {
+        this.#onObjectDeleted.fire({
+          kubeconfig: this.#kubeConfig,
+          resourceName: this.#pluralName,
+          name: step.object.metadata?.name ?? '',
+          namespace: step.object.metadata?.namespace ?? '',
+        });
+      }
+    }
   }
 }

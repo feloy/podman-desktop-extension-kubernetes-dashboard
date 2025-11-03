@@ -19,6 +19,7 @@
 import type { CoreV1Event, KubernetesObject } from '@kubernetes/client-node';
 
 export interface DebuggerStepUI {
+  index: number;
   selected: boolean;
   name: string;
   kind: string;

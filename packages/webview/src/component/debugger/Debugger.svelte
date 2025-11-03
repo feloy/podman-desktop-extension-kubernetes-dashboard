@@ -11,6 +11,7 @@ import type { DebuggerStepUI } from './debugger';
 import NameKind from '/@/component/debugger/columns/NameKind.svelte';
 import Status from '/@/component/debugger/columns/Status.svelte';
 import EventDetails from '/@/component/debugger/columns/EventDetails.svelte';
+import Actions from '/@/component/debugger/columns/Actions.svelte';
 
 const remote = getContext<Remote>(Remote);
 const contextsApi = remote.getProxy<ContextsApi>(API_CONTEXTS);
@@ -29,7 +30,8 @@ onDestroy(() => {
 });
 
 const data = $derived(
-  debuggerInfo.data?.steps.map(step => ({
+  debuggerInfo.data?.steps.map((step, index) => ({
+    index,
     selected: false,
     name: step.object.metadata?.name ?? '',
     kind: step.object.kind ?? 'unknown',
@@ -53,7 +55,13 @@ let nameColumn = new TableColumn<DebuggerStepUI>('Name', {
 let eventDetailsColumn = new TableColumn<DebuggerStepUI>('Event Info', {
   renderer: EventDetails,
 });
-const columns = [statusColumn, nameColumn, eventDetailsColumn];
+let actionsColumn = new TableColumn<DebuggerStepUI>('Actions', {
+  align: 'right',
+  width: '100px',
+  renderer: Actions,
+});
+
+const columns = [statusColumn, nameColumn, eventDetailsColumn, actionsColumn];
 const row = new TableRow<DebuggerStepUI>({});
 </script>
 
