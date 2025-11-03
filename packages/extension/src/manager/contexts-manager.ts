@@ -871,6 +871,7 @@ export class ContextsManager implements ContextsApi {
               const eventObject = event.object as CoreV1Event;
               this.#steps.push({
                 type: `event-${event.type}`,
+                resourceName: informer.resourceName,
                 object: {
                   kind: eventObject.involvedObject.kind,
                   apiVersion: eventObject.involvedObject.apiVersion,
@@ -885,7 +886,7 @@ export class ContextsManager implements ContextsApi {
               });
             }
           } else {
-            this.#steps.push(event);
+            this.#steps.push({ ...event, resourceName: informer.resourceName });
           }
           this.#onStepByStepChange.fire();
         });
@@ -902,5 +903,53 @@ export class ContextsManager implements ContextsApi {
 
   getSteps(): DebuggerStep[] {
     return this.#steps;
+  }
+
+  async advanceOneStep(): Promise<void> {
+    if (!this.#stepByStepMode) {
+      return;
+    }
+    if (this.#steps.length === 0) {
+      return;
+    }
+    const step = this.#steps.shift();
+    if (!step) {
+      return;
+    }
+    this.#onStepByStepChange.fire();
+    const currentContextName = this.currentContext?.getKubeConfig().currentContext;
+    if (!currentContextName) {
+      return;
+    }
+
+    if (step.type === 'event-add' || step.type === 'event-update' || step.type === 'event-delete') {
+      const informer = this.#informers.get(this.currentContext?.getKubeConfig().currentContext, 'events');
+      if (!informer) {
+        return;
+      }
+      informer.advanceOneStep({
+        type: this.getEventType(step.type),
+        object: step.event,
+      });
+      return;
+    }
+    const informer = this.#informers.get(currentContextName, step.resourceName);
+    if (!informer) {
+      return;
+    }
+    informer.advanceOneStep({
+      type: step.type,
+      object: step.object,
+    });
+  }
+
+  getEventType(type: string): 'update' | 'delete' | 'add' {
+    if (type === 'event-add') {
+      return 'add';
+    }
+    if (type === 'event-update') {
+      return 'update';
+    }
+    return 'delete';
   }
 }
