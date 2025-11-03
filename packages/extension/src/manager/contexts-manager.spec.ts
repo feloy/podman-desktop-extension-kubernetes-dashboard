@@ -1019,6 +1019,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
           expect(manager.getSteps()).toEqual([
             {
               type: 'add',
+              resourceName: 'resource1',
               object: {
                 kind: 'Pod',
                 metadata: { name: 'pod1' },
@@ -1046,6 +1047,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
           expect(manager.getSteps()).toEqual([
             {
               type: 'event-add',
+              resourceName: 'events',
               object: {
                 apiVersion: 'v1',
                 kind: 'Pod',
@@ -1091,6 +1093,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
           expect(manager.getSteps()).toEqual([
             {
               type: 'event-update',
+              resourceName: 'events',
               object: {
                 apiVersion: 'v1',
                 kind: 'Pod',
