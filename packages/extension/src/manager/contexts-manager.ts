@@ -867,10 +867,10 @@ export class ContextsManager implements ContextsApi {
       if (stepByStep) {
         informer.value.setStepByStepMode(true, (event: StepEvent) => {
           if (informer.resourceName === 'events') {
-            if (event.type === 'add') {
+            if (['add', 'update'].includes(event.type)) {
               const eventObject = event.object as CoreV1Event;
               this.#steps.push({
-                type: 'event',
+                type: `event-${event.type}`,
                 object: {
                   kind: eventObject.involvedObject.kind,
                   apiVersion: eventObject.involvedObject.apiVersion,
