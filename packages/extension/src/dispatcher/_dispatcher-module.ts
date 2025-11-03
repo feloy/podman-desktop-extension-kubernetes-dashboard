@@ -68,7 +68,7 @@ const dispatchersModule = new ContainerModule(options => {
 
   options.bind<KubernetesProvidersDispatcher>(KubernetesProvidersDispatcher).toSelf().inSingletonScope();
   options.bind(DispatcherObject).toService(KubernetesProvidersDispatcher);
-  
+
   options.bind<DebuggerDispatcher>(DebuggerDispatcher).toSelf().inSingletonScope();
   options.bind(DispatcherObject).toService(DebuggerDispatcher);
 });
