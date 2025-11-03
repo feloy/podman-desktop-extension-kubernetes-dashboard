@@ -1045,7 +1045,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
           });
           expect(manager.getSteps()).toEqual([
             {
-              type: 'event',
+              type: 'event-add',
               object: {
                 apiVersion: 'v1',
                 kind: 'Pod',
@@ -1072,7 +1072,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
           ]);
         });
 
-        test('an updated Event does not add a step', async () => {
+        test('an updated Event adds a step', async () => {
           onEventCB({
             type: 'update',
             object: {
@@ -1088,7 +1088,33 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
               },
             } as CoreV1Event,
           });
-          expect(manager.getSteps()).toEqual([]);
+          expect(manager.getSteps()).toEqual([
+            {
+              type: 'event-update',
+              object: {
+                apiVersion: 'v1',
+                kind: 'Pod',
+                metadata: {
+                  name: 'pod1',
+                  namespace: 'ns1',
+                  uid: 'uid1',
+                  resourceVersion: '123',
+                },
+              },
+              event: {
+                kind: 'Event',
+                metadata: { name: 'event1' },
+                involvedObject: {
+                  kind: 'Pod',
+                  apiVersion: 'v1',
+                  name: 'pod1',
+                  namespace: 'ns1',
+                  uid: 'uid1',
+                  resourceVersion: '123',
+                },
+              },
+            },
+          ]);
         });
 
         test('a deleted Event does not add a step', async () => {
