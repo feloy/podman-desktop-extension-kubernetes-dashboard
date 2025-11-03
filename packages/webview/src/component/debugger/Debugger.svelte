@@ -2,11 +2,15 @@
 import { getContext, onDestroy, onMount } from 'svelte';
 import { Remote } from '/@/remote/remote';
 import { API_CONTEXTS, type ContextsApi } from '@kubernetes-dashboard/channels';
-import { NavPage } from '@podman-desktop/ui-svelte';
+import { NavPage, Table, TableColumn, TableRow } from '@podman-desktop/ui-svelte';
 import { States } from '/@/state/states';
 import type { Unsubscriber } from 'svelte/store';
 import { faPlay, faStop } from '@fortawesome/free-solid-svg-icons';
 import IconButton from '/@/component/button/IconButton.svelte';
+import type { DebuggerStepUI } from './debugger';
+import NameKind from '/@/component/debugger/columns/NameKind.svelte';
+import Status from '/@/component/debugger/columns/Status.svelte';
+import EventDetails from '/@/component/debugger/columns/EventDetails.svelte';
 
 const remote = getContext<Remote>(Remote);
 const contextsApi = remote.getProxy<ContextsApi>(API_CONTEXTS);
@@ -23,6 +27,34 @@ onDestroy(() => {
   unsubscriber?.();
   unsubscriber = undefined;
 });
+
+const data = $derived(
+  debuggerInfo.data?.steps.map(step => ({
+    selected: false,
+    name: step.object.metadata?.name ?? '',
+    kind: step.object.kind ?? 'unknown',
+    type: step.type,
+    object: step.object,
+    event:
+      step.type === 'event-add' || step.type === 'event-update' || step.type === 'event-delete'
+        ? step.event
+        : undefined,
+  })),
+);
+
+let statusColumn = new TableColumn<DebuggerStepUI>('Status', {
+  align: 'center',
+  width: '70px',
+  renderer: Status,
+});
+let nameColumn = new TableColumn<DebuggerStepUI>('Name', {
+  renderer: NameKind,
+});
+let eventDetailsColumn = new TableColumn<DebuggerStepUI>('Event Info', {
+  renderer: EventDetails,
+});
+const columns = [statusColumn, nameColumn, eventDetailsColumn];
+const row = new TableRow<DebuggerStepUI>({});
 </script>
 
 <NavPage searchEnabled={false} title="Debugger">
@@ -45,22 +77,8 @@ onDestroy(() => {
     </div>
   {/snippet}
   {#snippet content()}
-    <div>
-      {#each debuggerInfo.data?.steps as step, index (index)}
-        <div>
-          {step.type} /
-          {step.object.kind} /
-          {step.object.metadata?.name}
-          {#if step.type === 'event'}
-            <div class="ml-2">{step.event.message}</div>
-          {/if}
-          {#each step.object.metadata?.managedFields as managedField, index (index)}
-            <div class="ml-2">
-              {managedField.operation} / {managedField.time} / {managedField.manager} / {managedField.subresource}
-            </div>
-          {/each}
-        </div>
-      {/each}
+    <div class="flex min-w-full h-full">
+      <Table kind="Step" data={data ?? []} columns={columns} row={row}></Table>
     </div>
   {/snippet}
 </NavPage>
