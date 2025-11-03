@@ -18,20 +18,11 @@
 
 import type { CoreV1Event, KubernetesObject } from '@kubernetes/client-node';
 
-export interface DebuggerStepResource {
-  type: 'update' | 'delete' | 'add';
+export interface DebuggerStepUI {
+  selected: boolean;
+  name: string;
+  kind: string;
+  type: 'update' | 'delete' | 'add' | 'event-add' | 'event-update' | 'event-delete';
   object: KubernetesObject;
-}
-
-export interface DebuggerStepEvent {
-  type: 'event-add' | 'event-update' | 'event-delete';
-  object: KubernetesObject;
-  event: CoreV1Event;
-}
-
-export type DebuggerStep = DebuggerStepResource | DebuggerStepEvent;
-
-export interface DebuggerInfo {
-  active: boolean;
-  steps: DebuggerStep[];
+  event?: CoreV1Event;
 }
