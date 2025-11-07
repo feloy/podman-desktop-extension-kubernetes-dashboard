@@ -181,6 +181,8 @@ jobs:
           sed -i  "s#version\":\ \"\(.*\)\",#version\":\ \"${TAG_PATTERN}\",#g" packages/api/package.json
 
       - name: publish api package
-        run: pnpm publish --no-git-checks
+        run: |
+          cd packages/api
+          pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
