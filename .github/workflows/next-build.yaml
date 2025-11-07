@@ -170,6 +170,7 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: ${{ github.repository_owner }}
           cache: 'pnpm'
+          cache-dependency-path: packages/api
 
       - name: Set api package version
         run: |
