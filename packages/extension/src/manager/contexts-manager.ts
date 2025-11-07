@@ -886,7 +886,11 @@ export class ContextsManager implements ContextsApi {
               });
             }
           } else {
-            this.#steps.push({ ...event, resourceName: informer.resourceName });
+            this.#steps.push({
+              ...event,
+              previous: event.type === 'add' ? undefined : this.getPreviousObject(informer.resourceName, event.object),
+              resourceName: informer.resourceName,
+            });
           }
           this.#onStepByStepChange.fire();
         });
@@ -951,5 +955,30 @@ export class ContextsManager implements ContextsApi {
       return 'update';
     }
     return 'delete';
+  }
+
+  protected getPreviousObject(resourceName: string, object: KubernetesObject): KubernetesObject | undefined {
+    if (object.metadata?.name === undefined) {
+      return undefined;
+    }
+    for (let index = this.#steps.length - 1; index >= 0; index--) {
+      const step = this.#steps[index];
+      if (
+        step.resourceName === resourceName &&
+        step.object.metadata?.name === object.metadata.name &&
+        step.object.metadata?.namespace === object.metadata.namespace
+      ) {
+        return step.object;
+      }
+    }
+    const currentContextName = this.currentContext?.getKubeConfig().currentContext;
+    if (!currentContextName) {
+      return undefined;
+    }
+    const informer = this.#informers.get(currentContextName, resourceName);
+    if (!informer) {
+      return undefined;
+    }
+    return informer.getCache()?.get(object.metadata.name, object.metadata.namespace);
   }
 }
