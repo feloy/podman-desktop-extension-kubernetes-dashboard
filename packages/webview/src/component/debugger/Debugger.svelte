@@ -37,6 +37,7 @@ const data = $derived(
     kind: step.object.kind ?? 'unknown',
     type: step.type,
     object: step.object,
+    previous: step.type === 'add' || step.type === 'update' || step.type === 'delete' ? step.previous : undefined,
     event:
       step.type === 'event-add' || step.type === 'event-update' || step.type === 'event-delete'
         ? step.event

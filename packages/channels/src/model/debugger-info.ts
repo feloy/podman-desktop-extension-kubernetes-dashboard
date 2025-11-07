@@ -22,6 +22,7 @@ export interface DebuggerStepResource {
   type: 'update' | 'delete' | 'add';
   resourceName: string;
   object: KubernetesObject;
+  previous?: KubernetesObject;
 }
 
 export interface DebuggerStepEvent {
