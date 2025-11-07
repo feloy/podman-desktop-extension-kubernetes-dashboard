@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - test-publish-cache
 
 jobs:
   check-builder-changes:
