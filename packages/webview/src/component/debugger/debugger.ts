@@ -25,5 +25,6 @@ export interface DebuggerStepUI {
   kind: string;
   type: 'update' | 'delete' | 'add' | 'event-add' | 'event-update' | 'event-delete';
   object: KubernetesObject;
+  previous?: KubernetesObject;
   event?: CoreV1Event;
 }
