@@ -29,7 +29,7 @@ export class DebuggerDispatcher extends AbsDispatcherObjectImpl<void, DebuggerIn
     @inject(RpcExtension) rpcExtension: RpcExtension,
     @inject(ContextsManager) private manager: ContextsManager,
   ) {
-    super(rpcExtension, DEBUGGER);
+    super(DEBUGGER);
   }
 
   getData(): DebuggerInfo {
