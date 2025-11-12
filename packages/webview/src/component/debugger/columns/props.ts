@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
 
-import type { DebuggerStepUI } from '/@/component/debugger/debugger';
+import type { DebuggerStepUI } from '/@/component/debugger/step-helper';
 
 export interface Props {
   object: DebuggerStepUI;
