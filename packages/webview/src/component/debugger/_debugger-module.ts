@@ -15,14 +15,12 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
-import type { V1ManagedFieldsEntry, KubernetesObject } from '@kubernetes/client-node';
-import { getNewManagedFields } from '/@/component/debugger/debugger';
 
-export function getManagedField(object: KubernetesObject, previous?: KubernetesObject): string {
-  const newEntries = getNewManagedFields(object, previous);
-  const label: (op: V1ManagedFieldsEntry) => string = op => {
-    const subResource = op.subresource ? ` ${op.subresource}` : '';
-    return `${op.operation}${subResource} from ${op.manager}`;
-  };
-  return newEntries.map(label).join(', ') ?? '';
-}
+import { ContainerModule } from 'inversify';
+import { DebuggerStepHelper } from '/@/component/debugger/step-helper';
+
+const debuggerModule = new ContainerModule(options => {
+  options.bind<DebuggerStepHelper>(DebuggerStepHelper).toSelf().inSingletonScope();
+});
+
+export { debuggerModule };
