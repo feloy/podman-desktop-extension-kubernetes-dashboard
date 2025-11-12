@@ -27,6 +27,7 @@ import PodDetails from './component/pods/PodDetails.svelte';
 import PortForwardingList from './component/port-forward/PortForwardingList.svelte';
 import Debugger from '/@/component/debugger/Debugger.svelte';
 import type { TinroRouteMeta } from 'tinro';
+import DebuggerDetails from './component/debugger/DebuggerDetails.svelte';
 
 // import globally the monaco environment
 import './monaco-environment';
@@ -139,5 +140,9 @@ const { meta }: Props = $props();
 
   <Route path="/debugger">
     <Debugger />
+  </Route>
+
+  <Route path="/debugger/:step/*" let:meta>
+    <DebuggerDetails step={+meta.params.step} />
   </Route>
 </div>
