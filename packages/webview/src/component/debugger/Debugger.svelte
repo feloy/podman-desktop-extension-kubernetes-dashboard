@@ -7,11 +7,15 @@ import { States } from '/@/state/states';
 import type { Unsubscriber } from 'svelte/store';
 import { faPlay, faStop } from '@fortawesome/free-solid-svg-icons';
 import IconButton from '/@/component/button/IconButton.svelte';
-import type { DebuggerStepUI } from './debugger';
 import NameKind from '/@/component/debugger/columns/NameKind.svelte';
 import Status from '/@/component/debugger/columns/Status.svelte';
 import EventDetails from '/@/component/debugger/columns/EventDetails.svelte';
 import Actions from '/@/component/debugger/columns/Actions.svelte';
+import { DependencyAccessor } from '/@/inject/dependency-accessor';
+import { DebuggerStepHelper, type DebuggerStepUI } from '/@/component/debugger/step-helper';
+
+const dependencyAccessor = getContext<DependencyAccessor>(DependencyAccessor);
+const stepHelper = dependencyAccessor.get<DebuggerStepHelper>(DebuggerStepHelper);
 
 const remote = getContext<Remote>(Remote);
 const contextsApi = remote.getProxy<ContextsApi>(API_CONTEXTS);
@@ -30,19 +34,9 @@ onDestroy(() => {
 });
 
 const data = $derived(
-  debuggerInfo.data?.steps.map((step, index) => ({
-    index,
-    selected: false,
-    name: step.object.metadata?.name ?? '',
-    kind: step.object.kind ?? 'unknown',
-    type: step.type,
-    object: step.object,
-    previous: step.type === 'add' || step.type === 'update' || step.type === 'delete' ? step.previous : undefined,
-    event:
-      step.type === 'event-add' || step.type === 'event-update' || step.type === 'event-delete'
-        ? step.event
-        : undefined,
-  })),
+  debuggerInfo.data?.steps
+    .map((step, index) => stepHelper.DebuggerStepUI(step, index))
+    .filter(step => step !== undefined),
 );
 
 let statusColumn = new TableColumn<DebuggerStepUI>('Status', {

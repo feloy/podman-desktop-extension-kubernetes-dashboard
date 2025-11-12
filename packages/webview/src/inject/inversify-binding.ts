@@ -38,6 +38,7 @@ import { jobsModule } from '/@/component/jobs/_jobs-module';
 import { cronjobsModule } from '/@/component/cronjobs/_cronjobs-module';
 import { podsModule } from '/@/component/pods/_pods-module';
 import { streamsModule } from '/@/stream/stream-module';
+import { debuggerModule } from '/@/component/debugger/_debugger-module';
 
 export class InversifyBinding {
   #container: Container | undefined;
@@ -70,6 +71,7 @@ export class InversifyBinding {
     await this.#container.load(jobsModule);
     await this.#container.load(cronjobsModule);
     await this.#container.load(podsModule);
+    await this.#container.load(debuggerModule);
 
     return this.#container;
   }
