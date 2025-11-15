@@ -77,6 +77,7 @@ import { EndpointSlicesResourceFactory } from '/@/resources/endpoint-slices-reso
 import { parseAllDocuments, stringify, type Tags } from 'yaml';
 import { writeFile } from 'node:fs/promises';
 import { ContextPermission, ResourceCount } from '@podman-desktop/kubernetes-dashboard-extension-api';
+import { ReplicaSetsResourceFactory } from '/@/resources/replicasets-resource-factory.js';
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 const DEFAULT_NAMESPACE = 'default';
@@ -172,6 +173,7 @@ export class ContextsManager implements ContextsApi {
       new NodesResourceFactory(),
       new PodsResourceFactory(this),
       new PVCsResourceFactory(),
+      new ReplicaSetsResourceFactory(),
       new RoutesResourceFactory(this),
       new SecretsResourceFactory(),
       new ServicesResourceFactory(),
