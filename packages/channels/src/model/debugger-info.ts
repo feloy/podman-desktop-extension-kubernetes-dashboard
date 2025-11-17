@@ -23,6 +23,8 @@ export interface DebuggerStepResource {
   resourceName: string;
   object: KubernetesObject;
   previous?: KubernetesObject;
+  yamlObject: string;
+  yamlPrevious: string;
 }
 
 export interface DebuggerStepEvent {

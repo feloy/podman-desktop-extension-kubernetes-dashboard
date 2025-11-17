@@ -1014,6 +1014,8 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
                 kind: 'Pod',
                 metadata: { name: 'pod1' },
               },
+              yamlObject: expect.any(String),
+              yamlPrevious: expect.any(String),
             },
           ]);
         });
