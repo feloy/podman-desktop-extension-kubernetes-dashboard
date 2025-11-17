@@ -29,6 +29,8 @@ export interface DebuggerStepResourceUI extends DebuggerStepBaseUI {
   type: 'update' | 'delete' | 'add';
   object: KubernetesObject;
   previous?: KubernetesObject;
+  yamlObject: string;
+  yamlPrevious: string;
 }
 
 export interface DebuggerStepEventUI extends DebuggerStepBaseUI {
@@ -58,6 +60,8 @@ export class DebuggerStepHelper {
         type: step.type,
         object: step.object,
         previous: step.previous,
+        yamlObject: step.yamlObject,
+        yamlPrevious: step.yamlPrevious,
       };
     } else {
       return {
