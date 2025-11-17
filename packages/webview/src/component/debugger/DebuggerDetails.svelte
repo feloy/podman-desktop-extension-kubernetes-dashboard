@@ -36,12 +36,24 @@ let subtitle = $state('');
 
 $effect(() => {
   if (stepInfo) {
-    title = stepInfo.name;
-    if (stepHelper.isResourceStepUI(stepInfo)) {
-      subtitle = `Resource ${stepInfo.type}`;
-    } else {
-      subtitle = `Event ${stepInfo.type.split('-')[1]}`;
+    switch (stepInfo.type) {
+      case 'add':
+        title = `New ${stepInfo.kind}`;
+        break;
+      case 'update':
+        title = `Update ${stepInfo.kind}`;
+        break;
+      case 'delete':
+        title = `Delete ${stepInfo.kind}`;
+        break;
+      case 'event-add':
+        title = `New event on ${stepInfo.kind}`;
+        break;
+      case 'event-update':
+        title = `Update event on ${stepInfo.kind}`;
+        break;
     }
+    subtitle = stepInfo.name;
   }
 });
 
