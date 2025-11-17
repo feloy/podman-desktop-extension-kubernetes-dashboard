@@ -24,6 +24,7 @@ import { ContextsManager } from './contexts-manager';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { V1EndpointSlice, V1Ingress } from '@kubernetes/client-node';
 import type { V1Route, Endpoint } from '@kubernetes-dashboard/channels';
+import type { DebuggerStepManager } from '/@/manager/debugger-step-manager';
 
 class TestContextsManager extends ContextsManager {
   override getResourceFactories(): ResourceFactory[] {
@@ -39,7 +40,7 @@ describe('ContextsManager', () => {
   let manager: TestContextsManager;
 
   beforeEach(() => {
-    manager = new TestContextsManager();
+    manager = new TestContextsManager({} as DebuggerStepManager);
   });
 
   test.each<{
