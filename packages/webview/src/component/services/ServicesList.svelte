@@ -5,16 +5,32 @@ import NameColumn from '/@/component/objects/columns/Name.svelte';
 import StatusColumn from '/@/component/objects/columns/Status.svelte';
 import TypeColumn from '/@/component/services/columns/Type.svelte';
 import KubernetesObjectsList from '/@/component/objects/KubernetesObjectsList.svelte';
-import { getContext } from 'svelte';
+import { getContext, onMount } from 'svelte';
 import { DependencyAccessor } from '/@/inject/dependency-accessor';
 import KubernetesEmptyScreen from '/@/component/objects/KubernetesEmptyScreen.svelte';
 import ActionsColumn from '/@/component/services/columns/Actions.svelte';
 import type { ServiceUI } from './ServiceUI';
 import ServiceIcon from '/@/component/icons/ServiceIcon.svelte';
 import { ServiceHelper } from './service-helper';
+import { States } from '/@/state/states';
+import type { EndpointSliceUI } from '/@/component/endpointslices/EndpointSliceUI';
+import type { ContextResourceItems } from '@kubernetes-dashboard/channels';
+import { EndpointSliceHelper } from '/@/component/endpointslices/endpointslice-helper';
+import type { V1EndpointSlice } from '@kubernetes/client-node';
 
 const dependencyAccessor = getContext<DependencyAccessor>(DependencyAccessor);
 const serviceHelper = dependencyAccessor.get<ServiceHelper>(ServiceHelper);
+const endpointSliceHelper = dependencyAccessor.get<EndpointSliceHelper>(EndpointSliceHelper);
+
+const states = getContext<States>(States);
+const updateResource = states.stateUpdateResourceInfoUI;
+
+onMount(() => {
+  return updateResource.subscribe({
+    contextName: undefined, // ask for resources in the default context
+    resourceName: 'endpointslices',
+  });
+});
 
 let statusColumn = new TableColumn<ServiceUI>('Status', {
   align: 'center',
@@ -26,7 +42,8 @@ let statusColumn = new TableColumn<ServiceUI>('Status', {
 let nameColumn = new TableColumn<ServiceUI>('Name', {
   width: '1.3fr',
   renderer: NameColumn,
-  comparator: (a, b): number => a.name.localeCompare(b.name),
+  // TODO this comparator results in an infinite loop. Why?
+//  comparator: (a, b): number => a.name.localeCompare(b.name),
 });
 
 let typeColumn = new TableColumn<ServiceUI>('Type', {
@@ -35,10 +52,10 @@ let typeColumn = new TableColumn<ServiceUI>('Type', {
   comparator: (a, b): number => a.type.localeCompare(b.type),
 });
 
-let clusterIPColumn = new TableColumn<ServiceUI, string>('Cluster IP', {
-  renderMapping: (service): string => service.clusterIP,
+let clusterIPColumn = new TableColumn<ServiceUI | EndpointSliceUI, string>('Cluster IP', {
+  renderMapping: (service): string => isServiceUI(service) ? service.clusterIP : `${service.endpoints.length} endpoints`,
   renderer: TableSimpleColumn,
-  comparator: (a, b): number => a.clusterIP.localeCompare(b.clusterIP),
+  comparator: (a, b): number => (isServiceUI(a) && isServiceUI(b) ? a.clusterIP.localeCompare(b.clusterIP) : 0),
 });
 
 let portsColumn = new TableColumn<ServiceUI, string>('Ports', {
@@ -64,7 +81,29 @@ const columns = [
   new TableColumn<ServiceUI>('Actions', { align: 'right', renderer: ActionsColumn }),
 ];
 
-const row = new TableRow<ServiceUI>({ selectable: (_service): boolean => true });
+const row = new TableRow<ServiceUI | EndpointSliceUI>({
+  selectable: (_service): boolean => true,
+  children: (service): EndpointSliceUI[] => {
+    if (service.kind !== 'Service') {
+      return [];
+    }
+    return updateResource.data?.resources
+      .filter((resource: ContextResourceItems) => resource.resourceName === 'endpointslices')
+      .flatMap(resource =>
+        resource.items
+          .filter(item =>
+            item.metadata?.ownerReferences?.some(
+              owner => owner.uid === service.uid,
+            ),
+          )
+          .map(item => endpointSliceHelper.getEndpointSliceUI(item as V1EndpointSlice)),
+      ) ?? [];
+  },
+});
+
+function isServiceUI(service: ServiceUI | EndpointSliceUI): service is ServiceUI {
+  return service.kind === 'Service';
+}
 </script>
 
 <KubernetesObjectsList
