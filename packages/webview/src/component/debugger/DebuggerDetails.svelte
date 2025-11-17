@@ -1,5 +1,5 @@
 <script lang="ts">
-import { getContext } from 'svelte';
+import { getContext, onMount } from 'svelte';
 import { States } from '/@/state/states';
 import { DependencyAccessor } from '/@/inject/dependency-accessor';
 import { DebuggerStepHelper } from '/@/component/debugger/step-helper';
@@ -10,6 +10,8 @@ import StepResourceSummary from '/@/component/debugger/StepResourceSummary.svelt
 import Route from '/@/Route.svelte';
 import MonacoEditor from '/@/component/editor/MonacoEditor.svelte';
 import MonacoDiff from '/@/component/editor/MonacoDiff.svelte';
+import IconButton from '/@/component/button/IconButton.svelte';
+import { faBackward, faForward } from '@fortawesome/free-solid-svg-icons';
 
 interface Props {
   step: number;
@@ -42,6 +44,20 @@ $effect(() => {
     }
   }
 });
+
+function advanceOneStep(): void {
+  if (!stepInfo) return;
+  router.goto(`/debugger/${stepInfo.index + 1}/summary`);
+}
+
+function goToPreviousStep(): void {
+  if (!stepInfo) return;
+  router.goto(`/debugger/${stepInfo.index - 1}/summary`);
+}
+
+onMount(() => {
+  return debuggerInfo.subscribe();
+});
 </script>
 
 {#if stepInfo}
@@ -52,6 +68,18 @@ $effect(() => {
     breadcrumbRightPart={title}
     onbreadcrumbClick={navigateToList}
     onclose={navigateToList}>
+    {#snippet actionsSnippet()}
+      <IconButton
+        icon={faBackward}
+        title="Go to previous step"
+        onClick={goToPreviousStep}
+        enabled={stepInfo && stepInfo.index > 0} />
+      <IconButton
+        icon={faForward}
+        title="Go to next step"
+        onClick={advanceOneStep}
+        enabled={stepInfo && debuggerInfo.data && stepInfo.index < debuggerInfo.data.steps.length - 1} />
+    {/snippet}
     {#snippet tabsSnippet()}
       <Tab title="Summary" selected={$router.path.endsWith('/summary')} url="/debugger/{stepInfo.index}/summary" />
       {#if stepHelper.isResourceStepUI(stepInfo)}
