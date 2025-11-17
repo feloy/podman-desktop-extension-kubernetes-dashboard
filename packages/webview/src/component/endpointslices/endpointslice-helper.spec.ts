@@ -50,8 +50,5 @@ test('expect basic UI conversion', async () => {
   expect(endpointSliceUI.kind).toEqual('EndpointSlice');
   expect(endpointSliceUI.name).toEqual('my-endpoint-slice');
   expect(endpointSliceUI.namespace).toEqual('test-namespace');
-  expect(endpointSliceUI.ports).toEqual([
-    'http',
-    '443/TCP',
-  ]);
+  expect(endpointSliceUI.ports).toEqual(['http', '443/TCP']);
 });

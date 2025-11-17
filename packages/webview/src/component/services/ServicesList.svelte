@@ -43,7 +43,7 @@ let nameColumn = new TableColumn<ServiceUI>('Name', {
   width: '1.3fr',
   renderer: NameColumn,
   // TODO this comparator results in an infinite loop. Why?
-//  comparator: (a, b): number => a.name.localeCompare(b.name),
+  //  comparator: (a, b): number => a.name.localeCompare(b.name),
 });
 
 let typeColumn = new TableColumn<ServiceUI>('Type', {
@@ -53,7 +53,8 @@ let typeColumn = new TableColumn<ServiceUI>('Type', {
 });
 
 let clusterIPColumn = new TableColumn<ServiceUI | EndpointSliceUI, string>('Cluster IP', {
-  renderMapping: (service): string => isServiceUI(service) ? service.clusterIP : `${service.endpoints.length} endpoints`,
+  renderMapping: (service): string =>
+    isServiceUI(service) ? service.clusterIP : `${service.endpoints.length} endpoints`,
   renderer: TableSimpleColumn,
   comparator: (a, b): number => (isServiceUI(a) && isServiceUI(b) ? a.clusterIP.localeCompare(b.clusterIP) : 0),
 });
@@ -87,17 +88,15 @@ const row = new TableRow<ServiceUI | EndpointSliceUI>({
     if (service.kind !== 'Service') {
       return [];
     }
-    return updateResource.data?.resources
-      .filter((resource: ContextResourceItems) => resource.resourceName === 'endpointslices')
-      .flatMap(resource =>
-        resource.items
-          .filter(item =>
-            item.metadata?.ownerReferences?.some(
-              owner => owner.uid === service.uid,
-            ),
-          )
-          .map(item => endpointSliceHelper.getEndpointSliceUI(item as V1EndpointSlice)),
-      ) ?? [];
+    return (
+      updateResource.data?.resources
+        .filter((resource: ContextResourceItems) => resource.resourceName === 'endpointslices')
+        .flatMap(resource =>
+          resource.items
+            .filter(item => item.metadata?.ownerReferences?.some(owner => owner.uid === service.uid))
+            .map(item => endpointSliceHelper.getEndpointSliceUI(item as V1EndpointSlice)),
+        ) ?? []
+    );
   },
 });
 

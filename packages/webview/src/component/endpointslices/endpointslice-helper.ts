@@ -27,7 +27,10 @@ export class EndpointSliceHelper {
       status: 'RUNNING',
       namespace: endpointSlice.metadata?.namespace ?? '',
       uid: endpointSlice.metadata?.uid ?? '',
-      ports: endpointSlice.ports?.map(port => (port.name && port.name.length > 0) ? port.name : `${port.port}/${port.protocol}`) ?? [],
+      ports:
+        endpointSlice.ports?.map(port =>
+          port.name && port.name.length > 0 ? port.name : `${port.port}/${port.protocol}`,
+        ) ?? [],
       endpoints: endpointSlice.endpoints?.map(endpoint => `${endpoint.addresses.join(', ')}`) ?? [],
     };
   }
