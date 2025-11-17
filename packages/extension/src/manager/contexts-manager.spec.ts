@@ -36,6 +36,7 @@ import { ResourceFactoryBase } from '/@/resources/resource-factory.js';
 import type { CacheUpdatedEvent, ObjectDeletedEvent, ResourceInformer, StepEvent } from '/@/types/resource-informer.js';
 import { vol } from 'memfs';
 import type { ConnectOptions } from '@podman-desktop/kubernetes-dashboard-extension-api';
+import { DebuggerStepManager } from '/@/manager/debugger-step-manager.js';
 
 const resource4DeleteObjectMock = vi.fn();
 const resource4SearchBySelectorMock = vi.fn();
@@ -316,6 +317,8 @@ let kcWith2contexts: KubeConfig;
 const originalConsoleWarn = console.warn;
 const originalConsoleError = console.error;
 
+let debuggerStepManager: DebuggerStepManager;
+
 beforeEach(() => {
   vol.reset();
   vi.clearAllMocks();
@@ -358,6 +361,8 @@ beforeEach(() => {
 
   console.warn = vi.fn();
   console.error = vi.fn();
+
+  debuggerStepManager = new DebuggerStepManager();
 });
 
 afterEach(() => {
@@ -387,7 +392,7 @@ describe('HealthChecker is built and start is called for each context the first 
 
     vi.mocked(ContextHealthChecker).mockReturnValue(healthCheckerMock);
     vi.mocked(ContextPermissionsChecker).mockReturnValue(permissionsCheckerMock);
-    manager = new TestContextsManager();
+    manager = new TestContextsManager(debuggerStepManager);
   });
 
   test('when context is not reachable', async () => {
@@ -459,7 +464,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
 
     vi.mocked(ContextHealthChecker).mockReturnValue(healthCheckerMock);
     vi.mocked(ContextPermissionsChecker).mockReturnValue(permissionsCheckerMock);
-    manager = new TestContextsManager();
+    manager = new TestContextsManager(debuggerStepManager);
   });
 
   afterEach(() => {
@@ -1131,7 +1136,7 @@ describe('HealthChecker pass and PermissionsChecker resturns a value', async () 
 test('nothing is done when called again and kubeconfig does not change', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
 
   const startMock = vi.fn();
   const disposeMock = vi.fn();
@@ -1162,7 +1167,7 @@ test('nothing is done when called again and kubeconfig does not change', async (
 test('HealthChecker is built and start is called for each context being changed', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
 
   const startMock = vi.fn();
   const disposeMock = vi.fn();
@@ -1195,7 +1200,7 @@ test('HealthChecker is built and start is called for each context being changed'
 test('HealthChecker, PermissionsChecker and informers are disposed for each context being removed', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
 
   const healthCheckerMock = {
     start: vi.fn(),
@@ -1275,7 +1280,7 @@ test('HealthChecker, PermissionsChecker and informers are disposed for each cont
 test('getHealthCheckersStates calls getState for each health checker', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
 
   const startMock = vi.fn();
   const disposeMock = vi.fn();
@@ -1318,7 +1323,7 @@ test('getHealthCheckersStates calls getState for each health checker', async () 
 test('getPermissions calls getPermissions for each permissions checker', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
 
   const checkerMock = {
     start: vi.fn(),
@@ -1364,7 +1369,7 @@ test('getPermissions calls getPermissions for each permissions checker', async (
 test('dispose calls dispose for each health checker', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
 
   const startMock = vi.fn();
   const disposeMock = vi.fn();
@@ -1389,7 +1394,7 @@ test('dispose calls dispose for each health checker', async () => {
 test('dispose calls dispose for each permissions checker', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
 
   const healthCheckerMock = {
     start: vi.fn(),
@@ -1436,7 +1441,7 @@ test('dispose calls dispose for each permissions checker', async () => {
 test('only current context is monitored', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring');
   vi.spyOn(manager, 'stopMonitoring');
   await manager.update(kc);
@@ -1470,7 +1475,7 @@ test('only current context is monitored', async () => {
 test('get currentContext', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1484,7 +1489,7 @@ test('setCurrentContext sets the current context', async () => {
   });
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1503,7 +1508,7 @@ test('setCurrentContext sets the current context', async () => {
 test('onCurrentContextChange is fired', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   const listener = vi.fn();
@@ -1515,7 +1520,7 @@ test('onCurrentContextChange is fired', async () => {
 test('onCurrentContextChange is fired only when current context changes', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWith2contexts);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   const listener = vi.fn();
@@ -1539,7 +1544,7 @@ test('onCurrentContextChange is fired only when current context changes', async 
 test('deleteObject when no current context', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithNoCurrentContext);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1551,7 +1556,7 @@ test('deleteObject when no current context', async () => {
 test('deleteObject with unhandled resource', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1563,7 +1568,7 @@ test('deleteObject with unhandled resource', async () => {
 test('deleteObject with non deletable resource', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1575,7 +1580,7 @@ test('deleteObject with non deletable resource', async () => {
 test('deleteObject on context namespace', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1588,7 +1593,7 @@ test('deleteObject on context namespace', async () => {
 test('deleteObject on other namespace', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1601,7 +1606,7 @@ test('deleteObject on other namespace', async () => {
 test('deleteObject handler returns KubernetesObject', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   vi.spyOn(manager, 'handleStatus');
@@ -1623,7 +1628,7 @@ test('deleteObject handler returns KubernetesObject', async () => {
 test('deleteObject handler returns Status', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   vi.spyOn(manager, 'handleStatus');
@@ -1642,7 +1647,7 @@ test('deleteObject handler returns Status', async () => {
 test('deleteObject handler throws status embedded in ApiException', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   vi.spyOn(manager, 'handleStatus');
@@ -1661,7 +1666,7 @@ test('deleteObject handler throws status embedded in ApiException', async () => 
 test('deleteObject handler throws a non-Status in ApiException', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   vi.spyOn(manager, 'handleStatus');
@@ -1688,7 +1693,7 @@ test('deleteObject handler throws a non-Status in ApiException', async () => {
 test('deleteObject handler throws a non-ApiException', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   vi.spyOn(manager, 'handleStatus');
@@ -1705,7 +1710,7 @@ test('deleteObject handler throws a non-ApiException', async () => {
 test('searchBySelector when no current context', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithNoCurrentContext);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1716,7 +1721,7 @@ test('searchBySelector when no current context', async () => {
 test('searchBySelector with unhandled resource', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1727,7 +1732,7 @@ test('searchBySelector with unhandled resource', async () => {
 test('searchBySelector with non searchable resource', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1738,7 +1743,7 @@ test('searchBySelector with non searchable resource', async () => {
 test('searchBySelector on context namespace', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1757,7 +1762,7 @@ test('searchBySelector on context namespace', async () => {
 test('searchBySelector on other namespace', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1776,7 +1781,7 @@ test('searchBySelector on other namespace', async () => {
 test('searchBySelector handler returns KubernetesObject', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   vi.spyOn(manager, 'handleStatus');
@@ -1797,7 +1802,7 @@ test('searchBySelector handler returns KubernetesObject', async () => {
 test('restartObject when no current context', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithNoCurrentContext);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1808,7 +1813,7 @@ test('restartObject when no current context', async () => {
 test('restartObject with unhandled resource', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1819,7 +1824,7 @@ test('restartObject with unhandled resource', async () => {
 test('restartObject with non restartable resource', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1830,7 +1835,7 @@ test('restartObject with non restartable resource', async () => {
 test('restartObject on context namespace', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1841,7 +1846,7 @@ test('restartObject on context namespace', async () => {
 test('restartObject on other namespace', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1852,7 +1857,7 @@ test('restartObject on other namespace', async () => {
 test('waitForObjectDeletion when no current context', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithNoCurrentContext);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1863,7 +1868,7 @@ test('waitForObjectDeletion when no current context', async () => {
 test('waitForObjectDeletion with unhandled resource', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1874,7 +1879,7 @@ test('waitForObjectDeletion with unhandled resource', async () => {
 test('waitForObjectDeletion with non readable resource', async () => {
   const kc = new KubeConfig();
   kc.loadFromOptions(kcWithContext1asDefault);
-  const manager = new TestContextsManager();
+  const manager = new TestContextsManager(debuggerStepManager);
   vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
   vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
   await manager.update(kc);
@@ -1893,7 +1898,7 @@ describe('with fake timers', () => {
   test('waitForObjectDeletion on context namespace should return false after timeout', async () => {
     const kc = new KubeConfig();
     kc.loadFromOptions(kcWithContext1asDefault);
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
     vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
     await manager.update(kc);
@@ -1907,7 +1912,7 @@ describe('with fake timers', () => {
   test('waitForObjectDeletion on context namespace should return true if object is already non preseent', async () => {
     const kc = new KubeConfig();
     kc.loadFromOptions(kcWithContext1asDefault);
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
     vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
     await manager.update(kc);
@@ -1919,7 +1924,7 @@ describe('with fake timers', () => {
   test('waitForObjectDeletion on context namespace should return true when object is deleted', async () => {
     const kc = new KubeConfig();
     kc.loadFromOptions(kcWithContext1asDefault);
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     vi.spyOn(manager, 'startMonitoring').mockImplementation(async (): Promise<void> => {});
     vi.spyOn(manager, 'stopMonitoring').mockImplementation((): void => {});
     const onObjectDeletedSpy = vi.spyOn(manager, 'onObjectDeleted');
@@ -1953,7 +1958,7 @@ describe.each([
   },
 ])('getTextualObjectsList', ({ objects, message }) => {
   test(message, () => {
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     const result = manager.getTextualObjectsList(objects);
     expect(result).toEqual(message);
   });
@@ -1982,7 +1987,7 @@ describe.each([
   },
 ])('getPluralized', ({ count, kind, message }) => {
   test(message, () => {
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     const result = manager.getPluralized(count, kind);
     expect(result).toEqual(message);
   });
@@ -2046,17 +2051,17 @@ describe('startMonitoring is called with limited resources', async () => {
 
 describe('step by step mode', () => {
   test('is not set by default', () => {
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     expect(manager.isStepByStepMode()).toBe(false);
   });
   test('can be set', async () => {
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     await manager.setStepByStepMode(true);
     expect(manager.isStepByStepMode()).toBe(true);
   });
 
   test('can be unset', async () => {
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     await manager.setStepByStepMode(true);
     expect(manager.isStepByStepMode()).toBe(true);
     await manager.setStepByStepMode(false);
@@ -2064,7 +2069,7 @@ describe('step by step mode', () => {
   });
 
   test('dispatch step by step mode change', async () => {
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     const onStepByStepChangeCB: (e: void) => unknown = vi.fn();
     manager.onStepByStepChange(onStepByStepChangeCB);
     await manager.setStepByStepMode(true);
@@ -2074,7 +2079,7 @@ describe('step by step mode', () => {
   });
 
   test('step by step mode is unset when context monitoring is stopped', async () => {
-    const manager = new TestContextsManager();
+    const manager = new TestContextsManager(debuggerStepManager);
     await manager.setStepByStepMode(true);
     expect(manager.isStepByStepMode()).toBe(true);
     manager.stopMonitoring('ctx1');
