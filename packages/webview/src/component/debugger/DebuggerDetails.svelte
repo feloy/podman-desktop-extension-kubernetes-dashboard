@@ -7,6 +7,9 @@ import { DetailsPage, Tab } from '@podman-desktop/ui-svelte';
 import { router } from 'tinro';
 import StepEventSummary from '/@/component/debugger/StepEventSummary.svelte';
 import StepResourceSummary from '/@/component/debugger/StepResourceSummary.svelte';
+import Route from '/@/Route.svelte';
+import MonacoEditor from '/@/component/editor/MonacoEditor.svelte';
+import MonacoDiff from '/@/component/editor/MonacoDiff.svelte';
 
 interface Props {
   step: number;
@@ -51,12 +54,39 @@ $effect(() => {
     onclose={navigateToList}>
     {#snippet tabsSnippet()}
       <Tab title="Summary" selected={$router.path.endsWith('/summary')} url="/debugger/{stepInfo.index}/summary" />
+      {#if stepHelper.isResourceStepUI(stepInfo)}
+        <Tab
+          title="Inspect previous"
+          selected={$router.path.endsWith('/yaml-previous')}
+          url="/debugger/{stepInfo.index}/yaml-previous" />
+        <Tab
+          title="Inspect next"
+          selected={$router.path.endsWith('/yaml-next')}
+          url="/debugger/{stepInfo.index}/yaml-next" />
+        <Tab
+          title="Differences"
+          selected={$router.path.endsWith('/yaml-diff')}
+          url="/debugger/{stepInfo.index}/yaml-diff" />
+      {/if}
     {/snippet}
     {#snippet contentSnippet()}
+      <Route path="/summary">
+        {#if stepHelper.isResourceStepUI(stepInfo)}
+          <StepResourceSummary stepInfo={stepInfo} />
+        {:else}
+          <StepEventSummary stepInfo={stepInfo} />
+        {/if}
+      </Route>
       {#if stepHelper.isResourceStepUI(stepInfo)}
-        <StepResourceSummary stepInfo={stepInfo} />
-      {:else}
-        <StepEventSummary stepInfo={stepInfo} />
+        <Route path="/yaml-previous">
+          <MonacoEditor content={stepInfo.yamlPrevious ?? ''} language="yaml" />
+        </Route>
+        <Route path="/yaml-next">
+          <MonacoEditor content={stepInfo.yamlObject ?? ''} language="yaml" />
+        </Route>
+        <Route path="/yaml-diff">
+          <MonacoDiff before={stepInfo.yamlPrevious ?? ''} after={stepInfo.yamlObject ?? ''} language="yaml" />
+        </Route>
       {/if}
     {/snippet}
   </DetailsPage>

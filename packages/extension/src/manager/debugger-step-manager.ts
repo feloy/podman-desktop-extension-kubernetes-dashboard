@@ -20,6 +20,7 @@ import type { CoreV1Event, KubernetesObject } from '@kubernetes/client-node';
 import type { ResourceInformer, StepEvent } from '/@/types/resource-informer';
 import type { Details } from '/@/registry/context-resource-registry';
 import type { DebuggerStep, DebuggerStepEvent, DebuggerStepResource } from '@kubernetes-dashboard/channels';
+import * as jsYaml from 'js-yaml';
 
 export class DebuggerStepManager {
   #steps: DebuggerStep[] = [];
@@ -65,14 +66,34 @@ export class DebuggerStepManager {
     };
   }
 
+  protected diffableObject(object: KubernetesObject): KubernetesObject {
+    return {
+      ...object,
+      metadata: {
+        ...object?.metadata,
+        managedFields: undefined,
+        generation: undefined,
+        resourceVersion: undefined,
+        creationTimestamp: undefined, // time format changes from time to time (bug in library?)
+      },
+    };
+  }
+
   protected stepEventToDebuggerStepResource(
     informer: Details<ResourceInformer<KubernetesObject>>,
     event: StepEvent,
   ): DebuggerStepResource {
+    const previousObject = event.type === 'add' ? undefined : this.getPreviousObject(informer, event.object);
+    const objectNoManagedFields = this.diffableObject(event.object);
+    const previousObjectNoManagedFields = previousObject ? this.diffableObject(previousObject) : undefined;
+    const yamlObject = jsYaml.dump(objectNoManagedFields, { sortKeys: true });
+    const yamlPrevious = jsYaml.dump(previousObjectNoManagedFields, { sortKeys: true });
     return {
       ...event,
-      previous: event.type === 'add' ? undefined : this.getPreviousObject(informer, event.object),
+      previous: previousObject,
       resourceName: informer.resourceName,
+      yamlObject,
+      yamlPrevious,
     };
   }
 
