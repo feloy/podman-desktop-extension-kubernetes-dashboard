@@ -71,13 +71,14 @@ import type {
 import { RoutesResourceFactory } from '/@/resources/routes-resource-factory.js';
 import { SecretsResourceFactory } from '/@/resources/secrets-resource-factory.js';
 import { ServicesResourceFactory } from '/@/resources/services-resource-factory.js';
-import { injectable } from 'inversify';
+import { inject, injectable } from 'inversify';
 import { NamespacesResourceFactory } from '/@/resources/namespaces-resource-factory.js';
 import { EndpointSlicesResourceFactory } from '/@/resources/endpoint-slices-resource-factory.js';
 import { parseAllDocuments, stringify, type Tags } from 'yaml';
 import { writeFile } from 'node:fs/promises';
 import { ContextPermission, ResourceCount } from '@podman-desktop/kubernetes-dashboard-extension-api';
 import { ReplicaSetsResourceFactory } from '/@/resources/replicasets-resource-factory.js';
+import { DebuggerStepManager } from '/@/manager/debugger-step-manager.js';
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 const DEFAULT_NAMESPACE = 'default';
@@ -101,7 +102,6 @@ export class ContextsManager implements ContextsApi {
   #currentContext?: KubeConfigSingleContext;
   #currentKubeConfig: KubeConfig;
   #stepByStepMode: boolean;
-  #steps: DebuggerStep[] = [];
 
   #onContextHealthStateChange = new Emitter<ContextHealthState>();
   onContextHealthStateChange: Event<ContextHealthState> = this.#onContextHealthStateChange.event;
@@ -137,7 +137,7 @@ export class ContextsManager implements ContextsApi {
   #onStepByStepChange = new Emitter<void>();
   onStepByStepChange: Event<void> = this.#onStepByStepChange.event;
 
-  constructor() {
+  constructor(@inject(DebuggerStepManager) private readonly debuggerStepManager: DebuggerStepManager) {
     this.#currentKubeConfig = new KubeConfig();
     this.#resourceFactoryHandler = new ResourceFactoryHandler();
     this.#stepByStepMode = false;
@@ -864,36 +864,11 @@ export class ContextsManager implements ContextsApi {
       return;
     }
     this.#stepByStepMode = stepByStep;
-    this.#steps = [];
+    this.debuggerStepManager.resetSteps();
     for (const informer of this.#informers.getAll()) {
       if (stepByStep) {
         informer.value.setStepByStepMode(true, (event: StepEvent) => {
-          if (informer.resourceName === 'events') {
-            if (['add', 'update'].includes(event.type)) {
-              const eventObject = event.object as CoreV1Event;
-              this.#steps.push({
-                type: `event-${event.type}`,
-                resourceName: informer.resourceName,
-                object: {
-                  kind: eventObject.involvedObject.kind,
-                  apiVersion: eventObject.involvedObject.apiVersion,
-                  metadata: {
-                    name: eventObject.involvedObject.name,
-                    namespace: eventObject.involvedObject.namespace,
-                    uid: eventObject.involvedObject.uid,
-                    resourceVersion: eventObject.involvedObject.resourceVersion,
-                  },
-                },
-                event: eventObject,
-              });
-            }
-          } else {
-            this.#steps.push({
-              ...event,
-              previous: event.type === 'add' ? undefined : this.getPreviousObject(informer.resourceName, event.object),
-              resourceName: informer.resourceName,
-            });
-          }
+          this.debuggerStepManager.receivedStep(informer, event);
           this.#onStepByStepChange.fire();
         });
       } else {
@@ -908,17 +883,17 @@ export class ContextsManager implements ContextsApi {
   }
 
   getSteps(): DebuggerStep[] {
-    return this.#steps;
+    return this.debuggerStepManager.getSteps();
   }
 
   async advanceOneStep(): Promise<void> {
     if (!this.#stepByStepMode) {
       return;
     }
-    if (this.#steps.length === 0) {
+    if (this.debuggerStepManager.getSteps().length === 0) {
       return;
     }
-    const step = this.#steps.shift();
+    const step = this.debuggerStepManager.shiftStep();
     if (!step) {
       return;
     }
@@ -957,30 +932,5 @@ export class ContextsManager implements ContextsApi {
       return 'update';
     }
     return 'delete';
-  }
-
-  protected getPreviousObject(resourceName: string, object: KubernetesObject): KubernetesObject | undefined {
-    if (object.metadata?.name === undefined) {
-      return undefined;
-    }
-    for (let index = this.#steps.length - 1; index >= 0; index--) {
-      const step = this.#steps[index];
-      if (
-        step.resourceName === resourceName &&
-        step.object.metadata?.name === object.metadata.name &&
-        step.object.metadata?.namespace === object.metadata.namespace
-      ) {
-        return step.object;
-      }
-    }
-    const currentContextName = this.currentContext?.getKubeConfig().currentContext;
-    if (!currentContextName) {
-      return undefined;
-    }
-    const informer = this.#informers.get(currentContextName, resourceName);
-    if (!informer) {
-      return undefined;
-    }
-    return informer.getCache()?.get(object.metadata.name, object.metadata.namespace);
   }
 }
