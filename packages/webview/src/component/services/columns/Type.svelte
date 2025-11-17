@@ -32,6 +32,10 @@ function getTypeAttributes(type: string): { color: string; icon: IconDefinition 
 }
 </script>
 
-<Label name={object.type}>
-  <Fa size="1x" icon={getTypeAttributes(object.type).icon} class={getTypeAttributes(object.type).color} />
-</Label>
+{#if object.kind === 'Service'}
+  <Label name={object.type}>
+    <Fa size="1x" icon={getTypeAttributes(object.type).icon} class={getTypeAttributes(object.type).color} />
+  </Label>
+{:else}
+  <Label>Endpoint Slice</Label>
+{/if}

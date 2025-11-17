@@ -41,6 +41,7 @@ import { streamsModule } from '/@/stream/stream-module';
 import { annotationsModule } from '/@/annotations/_annotations-module';
 import { debuggerModule } from '/@/component/debugger/_debugger-module';
 import { replicasetsModule } from '/@/component/replicasets/replicasets-module';
+import { endpointslicesModule } from '/@/component/endpointslices/endpointslices-module';
 
 export class InversifyBinding {
   #container: Container | undefined;
@@ -76,6 +77,7 @@ export class InversifyBinding {
     await this.#container.load(podsModule);
     await this.#container.load(annotationsModule);
     await this.#container.load(debuggerModule);
+    await this.#container.load(endpointslicesModule);
 
     return this.#container;
   }
