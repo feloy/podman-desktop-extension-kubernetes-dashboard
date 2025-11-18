@@ -31,6 +31,7 @@ import {
   UPDATE_RESOURCE,
   KUBERNETES_PROVIDERS,
   DEBUGGER,
+  CONFIGURATION,
 } from '@kubernetes-dashboard/channels';
 
 import type { ContextHealthState } from './context-health-checker.js';
@@ -44,6 +45,7 @@ import { ChannelSubscriber } from '/@/subscriber/channel-subscriber.js';
 import { PortForwardServiceProvider } from '/@/port-forward/port-forward-service.js';
 import { KubernetesProvidersManager } from '/@/manager/kubernetes-providers.js';
 import { StateSubscriber } from '/@/subscriber/state-subscriber.js';
+import { ConfigurationManager } from '/@/manager/configuration-manager.js';
 
 @injectable()
 export class ContextsStatesDispatcher {
@@ -55,6 +57,9 @@ export class ContextsStatesDispatcher {
 
   @inject(KubernetesProvidersManager)
   private kubernetesProvidersManager: KubernetesProvidersManager;
+
+  @inject(ConfigurationManager)
+  private configurationManager: ConfigurationManager;
 
   #dispatchers: Map<string, DispatcherObject<unknown>> = new Map();
 
@@ -119,6 +124,10 @@ export class ContextsStatesDispatcher {
 
     this.#subscribers.forEach(subscriber => {
       subscriber.onSubscribe(channelName => this.dispatchByChannelName(subscriber, channelName));
+    });
+
+    this.configurationManager.onConfigurationChange(async () => {
+      await this.dispatch(CONFIGURATION);
     });
   }
 
