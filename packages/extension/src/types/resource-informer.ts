@@ -140,7 +140,7 @@ export class ResourceInformer<T extends KubernetesObject> implements Disposable 
         items: list.items.map(item => ({
           kind: this.#kindName,
           apiVersion: list.apiVersion,
-          ...item,
+          ...this.setDateAsString(item),
         })),
       };
     };
@@ -219,6 +219,22 @@ export class ResourceInformer<T extends KubernetesObject> implements Disposable 
         `error starting the informer for resource ${this.#pluralName} on context ${this.#kubeConfig.getKubeConfig().currentContext}: ${String(err)}`,
       );
     });
+  }
+
+  public setDateAsString(object: T): T {
+    return this.subSetDateAsString(object) as T;
+  }
+
+  protected subSetDateAsString(object: unknown): unknown {
+    if (object instanceof Date) {
+      return object.toISOString().split('.')[0] + 'Z';
+    } else if (Array.isArray(object)) {
+      return object.map(element => this.subSetDateAsString(element));
+    } else if (!!object && typeof object === 'object') {
+      return Object.fromEntries(Object.entries(object).map(([key, value]) => [key, this.subSetDateAsString(value)]));
+    } else {
+      return object;
+    }
   }
 
   // reconnect tries to start the informer again if it is marked as offline
