@@ -80,6 +80,8 @@ import { ConnectOptions, ContextPermission, ResourceCount } from '@podman-deskto
 import { TelemetryLoggerSymbol } from '/@/inject/symbol.js';
 import { ReplicaSetsResourceFactory } from '/@/resources/replicasets-resource-factory.js';
 import { DebuggerStepManager } from '/@/manager/debugger-step-manager.js';
+import { CustomResourceFactory } from '/@/resources/crd-resource-factory.js';
+import { ConfigurationManager } from '/@/manager/configuration-manager.js';
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 const DEFAULT_NAMESPACE = 'default';
@@ -141,7 +143,10 @@ export class ContextsManager implements ContextsApi {
   @inject(TelemetryLoggerSymbol)
   protected telemetryLogger: TelemetryLogger;
 
-  constructor(@inject(DebuggerStepManager) private readonly debuggerStepManager: DebuggerStepManager) {
+  constructor(
+    @inject(DebuggerStepManager) private readonly debuggerStepManager: DebuggerStepManager,
+    @inject(ConfigurationManager) private readonly configurationManager: ConfigurationManager,
+  ) {
     this.#currentKubeConfig = new KubeConfig();
     this.#resourceFactoryHandler = new ResourceFactoryHandler();
     this.#stepByStepMode = false;
@@ -181,6 +186,23 @@ export class ContextsManager implements ContextsApi {
       new RoutesResourceFactory(this),
       new SecretsResourceFactory(),
       new ServicesResourceFactory(),
+      ...this.getCustomResourceFactories(),
+    ];
+  }
+
+  private getCustomResourceFactories(): ResourceFactory[] {
+    const config = this.configurationManager.getConfiguration();
+    if (!config.customResource) {
+      return [];
+    }
+    return [
+      new CustomResourceFactory({
+        isNamespaced: config.customResource.isNamespaced,
+        group: config.customResource.group,
+        version: config.customResource.version,
+        plural: config.customResource.plural,
+        kind: config.customResource.kind,
+      }),
     ];
   }
 

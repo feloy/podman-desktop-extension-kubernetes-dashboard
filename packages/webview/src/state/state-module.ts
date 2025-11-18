@@ -34,6 +34,7 @@ import { StateEndpointsInfo } from './endpoints.svelte';
 import { StateAvailableContextsInfo } from './available-contexts.svelte';
 import { StateKubernetesProvidersInfo } from './kubernetes-providers.svelte';
 import { StateDebuggerInfo } from '/@/state/debugger.svelte';
+import { StateConfigurationInfo } from '/@/state/configuration.svelte';
 
 const statesModule = new ContainerModule(options => {
   options.bind(States).toSelf().inSingletonScope();
@@ -89,6 +90,10 @@ const statesModule = new ContainerModule(options => {
   options.bind(StateDebuggerInfo).toSelf().inSingletonScope();
   options.bind(StateObject).toService(StateDebuggerInfo);
   options.bind(IDisposable).toService(StateDebuggerInfo);
+
+  options.bind(StateConfigurationInfo).toSelf().inSingletonScope();
+  options.bind(StateObject).toService(StateConfigurationInfo);
+  options.bind(IDisposable).toService(StateConfigurationInfo);
 });
 
 export { statesModule };
