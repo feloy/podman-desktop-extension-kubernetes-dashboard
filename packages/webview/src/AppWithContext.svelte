@@ -28,6 +28,7 @@ import PortForwardingList from './component/port-forward/PortForwardingList.svel
 import Debugger from '/@/component/debugger/Debugger.svelte';
 import type { TinroRouteMeta } from 'tinro';
 import DebuggerDetails from './component/debugger/DebuggerDetails.svelte';
+import CustomResourcesList from '/@/component/custom-resources/CustomResourcesList.svelte';
 
 // import globally the monaco environment
 import './monaco-environment';
@@ -132,6 +133,10 @@ const { meta }: Props = $props();
 
   <Route path="/cronjobs/:name/:namespace/*" let:meta>
     <CronJobDetails name={decodeURI(meta.params.name)} namespace={decodeURI(meta.params.namespace)} />
+  </Route>
+
+  <Route path="/custom-resource">
+    <CustomResourcesList />
   </Route>
 
   <Route path="/portForward">
