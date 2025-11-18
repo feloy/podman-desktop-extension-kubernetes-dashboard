@@ -16,8 +16,13 @@
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
 
-import type { WebviewPanel, ExtensionContext, KubeconfigUpdateEvent } from '@podman-desktop/api';
-import { env, kubernetes, Uri, window } from '@podman-desktop/api';
+import type {
+  WebviewPanel,
+  ExtensionContext,
+  KubeconfigUpdateEvent,
+  ConfigurationChangeEvent,
+} from '@podman-desktop/api';
+import { configuration, context, env, kubernetes, Uri, window } from '@podman-desktop/api';
 
 import { RpcExtension } from '@kubernetes-dashboard/rpc';
 
@@ -60,6 +65,8 @@ import type {
 } from '@podman-desktop/kubernetes-dashboard-extension-api';
 import { ApiSubscriber } from '/@/subscriber/api-subscriber';
 import { TelemetryApiImpl } from './manager/telemetry-api';
+import { MANAGE_CUSTOM_RESOURCE, MANAGE_CUSTOM_RESOURCE_SELECTED, SECTION } from '/@/constants';
+import { ConfigurationManager } from '/@/manager/configuration-manager';
 
 export class DashboardExtension {
   #container: Container | undefined;
@@ -78,6 +85,7 @@ export class DashboardExtension {
   #kubernetesProvidersManager: KubernetesProvidersManager;
   #webviewSubscriber: ChannelSubscriber;
   #telemetryApiImpl: TelemetryApiImpl;
+  #configurationManager: ConfigurationManager;
 
   constructor(readonly extensionContext: ExtensionContext) {
     this.#extensionContext = extensionContext;
@@ -108,8 +116,10 @@ export class DashboardExtension {
     this.#kubernetesProvidersManager = await this.#container.getAsync(KubernetesProvidersManager);
     this.#webviewSubscriber = await this.#container.getAsync(ChannelSubscriber);
     this.#telemetryApiImpl = await this.#container.getAsync(TelemetryApiImpl);
+    this.#configurationManager = await this.#container.getAsync(ConfigurationManager);
 
     this.#kubernetesProvidersManager.init();
+    this.#configurationManager.init();
 
     const afterFirst = performance.now();
 
@@ -138,6 +148,8 @@ export class DashboardExtension {
       }
     });
 
+    this.listenConfigChanges();
+
     return {
       getSubscriber: () => {
         const subscriber = new ApiSubscriber();
@@ -164,6 +176,23 @@ export class DashboardExtension {
         },
       },
     } as KubernetesDashboardExtensionApi;
+  }
+
+  private listenConfigChanges(): void {
+    const setSelected = (): void => {
+      const config = configuration.getConfiguration(SECTION);
+      const value = config.get(MANAGE_CUSTOM_RESOURCE);
+      context.setValue(`${SECTION}.${MANAGE_CUSTOM_RESOURCE_SELECTED}`, value ?? false);
+    };
+
+    this.#extensionContext.subscriptions.push(
+      configuration.onDidChangeConfiguration((e: ConfigurationChangeEvent) => {
+        if (e.affectsConfiguration(`${SECTION}.${MANAGE_CUSTOM_RESOURCE}`)) {
+          setSelected();
+        }
+      }),
+    );
+    setSelected();
   }
 
   async deactivate(): Promise<void> {

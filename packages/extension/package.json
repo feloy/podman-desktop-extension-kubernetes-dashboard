@@ -13,7 +13,48 @@
   "contributes": {
     "features": [
       "kubernetes-dashboard"
-    ]
+    ],
+    "configuration": {
+      "title": "Kubernetes Dashboard",
+      "properties": {
+        "kubernetes-dashboard.manageCustomResource": {
+          "type": "boolean",
+          "default": false,
+          "description": "Manage Custom Resource in the dashboard"
+        },
+        "kubernetes-dashboard.customResourceIsNamespaced": {
+          "type": "boolean",
+          "default": true,
+          "description": "Is the managed Custom Resource namespaced",
+          "when": "kubernetes-dashboard.manageCustomResourceSelected"
+
+        },
+        "kubernetes-dashboard.customResourceGroup": {
+          "type": "string",
+          "default": "",
+          "description": "Group of the managed Custom Resource",
+          "when": "kubernetes-dashboard.manageCustomResourceSelected"
+        },
+        "kubernetes-dashboard.customResourceVersion": {
+          "type": "string",
+          "default": "",
+          "description": "Version of the managed Custom Resource",
+          "when": "kubernetes-dashboard.manageCustomResourceSelected"
+        },
+        "kubernetes-dashboard.customResourcePlural": {
+          "type": "string",
+          "default": "",
+          "description": "Plural name of the managed Custom Resource",
+          "when": "kubernetes-dashboard.manageCustomResourceSelected"
+        },
+        "kubernetes-dashboard.customResourceKind": {
+          "type": "string",
+          "default": "",
+          "description": "Kind of the managed Custom Resource",
+          "when": "kubernetes-dashboard.manageCustomResourceSelected"
+        }
+      }
+    }
   },
   "scripts": {
     "build": "vite build",

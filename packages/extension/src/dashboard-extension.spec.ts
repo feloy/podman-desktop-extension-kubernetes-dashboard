@@ -17,7 +17,7 @@
  ***********************************************************************/
 
 import type { WebviewPanel, ExtensionContext } from '@podman-desktop/api';
-import { kubernetes, Uri, window } from '@podman-desktop/api';
+import { configuration, kubernetes, Uri, window } from '@podman-desktop/api';
 import { assert, beforeEach, describe, expect, test, vi } from 'vitest';
 import { DashboardExtension } from '/@/dashboard-extension';
 import { vol } from 'memfs';
@@ -77,6 +77,12 @@ beforeEach(() => {
   vi.mocked(kubernetes.getKubeconfig).mockReturnValue({
     path: '/path/to/kube/config',
   } as Uri);
+
+  vi.mocked(configuration.getConfiguration).mockReturnValue({
+    get: vi.fn(),
+    has: vi.fn(),
+    update: vi.fn(),
+  });
 });
 
 describe('a kubeconfig file is not present', () => {
