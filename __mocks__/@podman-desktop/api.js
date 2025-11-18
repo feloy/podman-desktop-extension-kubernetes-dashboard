@@ -81,6 +81,13 @@ const plugin = {
     onDidUpdateKubeconfig: vi.fn(),
     getKubeconfig: vi.fn(),
   },
+  configuration: {
+    onDidChangeConfiguration: vi.fn(),
+    getConfiguration: vi.fn(),
+  },
+  context: {
+    setValue: vi.fn(),
+  },
   Disposable: {
     create: (func) => ({ dispose: func }),
   },
