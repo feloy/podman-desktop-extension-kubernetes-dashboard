@@ -28,6 +28,7 @@ import { PodTerminalsApiImpl } from './pod-terminals-api-impl';
 import { NavigationApiImpl } from '/@/manager/navigation-api';
 import { KubernetesProvidersManager } from '/@/manager/kubernetes-providers';
 import { DebuggerStepManager } from '/@/manager/debugger-step-manager';
+import { ConfigurationManager } from '/@/manager/configuration-manager';
 
 const managersModule = new ContainerModule(options => {
   options.bind<ContextsManager>(ContextsManager).toSelf().inSingletonScope();
@@ -39,6 +40,7 @@ const managersModule = new ContainerModule(options => {
   options.bind<NavigationApiImpl>(NavigationApiImpl).toSelf().inSingletonScope();
   options.bind<KubernetesProvidersManager>(KubernetesProvidersManager).toSelf().inSingletonScope();
   options.bind<DebuggerStepManager>(DebuggerStepManager).toSelf().inSingletonScope();
+  options.bind<ConfigurationManager>(ConfigurationManager).toSelf().inSingletonScope();
 
   // Bind IDisposable to services which need to clear data/stop connection/etc when the panel is left
   // (the onDestroy are not called from components when the panel is left, which may introduce memory leaks if not disposed here)
