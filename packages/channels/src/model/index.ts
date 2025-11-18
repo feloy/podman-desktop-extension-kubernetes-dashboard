@@ -18,6 +18,7 @@
 
 export * from './active-resources-count-info';
 export * from './available-contexts-info';
+export * from './configuration-info';
 export * from './context-resource-events';
 export * from './context-resources-details';
 export * from './context-resources-items';
