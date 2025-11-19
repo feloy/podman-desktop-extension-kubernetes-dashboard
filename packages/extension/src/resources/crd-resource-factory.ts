@@ -16,31 +16,22 @@
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
 
-import type { KubernetesListObject, KubernetesObject, V1Status } from '@kubernetes/client-node';
-import { CustomObjectsApi } from '@kubernetes/client-node';
-
+import type { V1CustomResourceDefinition, V1CustomResourceDefinitionList } from '@kubernetes/client-node';
 import type { KubeConfigSingleContext } from '/@/types/kubeconfig-single-context.js';
 import type { ResourceFactory } from './resource-factory.js';
 import { ResourceFactoryBase } from './resource-factory.js';
 import { ResourceInformer } from '/@/types/resource-informer.js';
+import { ObjectApiextensionsV1Api } from '@kubernetes/client-node/dist/gen/types/ObjectParamAPI.js';
 
-export interface CRDDefinition {
-  isNamespaced: boolean;
-  group: string;
-  version: string;
-  plural: string;
-  kind: string;
-}
-
-export class CustomResourceFactory extends ResourceFactoryBase implements ResourceFactory {
-  constructor(private readonly definition: CRDDefinition) {
+export class CRDResourceFactory extends ResourceFactoryBase implements ResourceFactory {
+  constructor() {
     super({
-      resource: definition.plural,
-      kind: definition.kind,
+      resource: 'customresourcedefinitions',
+      kind: 'CustomResourceDefinition',
     });
 
     this.setPermissions({
-      isNamespaced: definition.isNamespaced,
+      isNamespaced: false,
       permissionsRequests: [
         {
           group: '*',
@@ -48,72 +39,28 @@ export class CustomResourceFactory extends ResourceFactoryBase implements Resour
           verb: 'watch',
         },
         {
-          group: definition.group,
-          version: definition.version,
-          resource: definition.plural,
           verb: 'watch',
+          group: 'apiextensions.k8s.io',
+          version: 'v1',
+          resource: 'customresourcedefinitions',
         },
       ],
     });
     this.setInformer({
       createInformer: this.createInformer.bind(this),
     });
-    this.setDeleteObject(this.deleteCustomResource);
   }
 
-  createInformer(kubeconfig: KubeConfigSingleContext): ResourceInformer<KubernetesObject> {
-    const namespace = kubeconfig.getNamespace();
-    const apiClient = kubeconfig.getKubeConfig().makeApiClient(CustomObjectsApi);
-    let listFn: () => Promise<KubernetesListObject<KubernetesObject>>;
-    let path: string;
-    if (this.definition.isNamespaced) {
-      listFn = (): Promise<KubernetesListObject<KubernetesObject>> =>
-        apiClient.listNamespacedCustomObject({
-          group: this.definition.group,
-          version: this.definition.version,
-          plural: this.definition.plural,
-          namespace,
-        });
-      path = `/apis/${this.definition.group}/${this.definition.version}/namespaces/${namespace}/${this.definition.plural}`;
-    } else {
-      listFn = (): Promise<KubernetesListObject<KubernetesObject>> =>
-        apiClient.listClusterCustomObject({
-          group: this.definition.group,
-          version: this.definition.version,
-          plural: this.definition.plural,
-        });
-      path = `/apis/${this.definition.group}/${this.definition.version}/${this.definition.plural}`;
-    }
-    return new ResourceInformer<KubernetesObject>({
+  createInformer(kubeconfig: KubeConfigSingleContext): ResourceInformer<V1CustomResourceDefinition> {
+    const apiClient = kubeconfig.getKubeConfig().makeApiClient(ObjectApiextensionsV1Api);
+    const listFn = (): Promise<V1CustomResourceDefinitionList> => apiClient.listCustomResourceDefinition();
+    const path = `/apis/apiextensions.k8s.io/v1/customresourcedefinitions`;
+    return new ResourceInformer<V1CustomResourceDefinition>({
       kubeconfig,
       path,
       listFn,
-      kind: this.definition.kind,
-      plural: this.definition.plural,
+      kind: this.kind,
+      plural: 'customresourcedefinitions',
     });
-  }
-
-  deleteCustomResource(
-    kubeconfig: KubeConfigSingleContext,
-    name: string,
-    namespace: string,
-  ): Promise<V1Status | KubernetesObject> {
-    const apiClient = kubeconfig.getKubeConfig().makeApiClient(CustomObjectsApi);
-    if (this.definition.isNamespaced) {
-      return apiClient.deleteNamespacedCustomObject({
-        group: this.definition.group,
-        version: this.definition.version,
-        plural: this.definition.plural,
-        name,
-        namespace,
-      });
-    } else {
-      return apiClient.deleteClusterCustomObject({
-        group: this.definition.group,
-        version: this.definition.version,
-        plural: this.definition.plural,
-        name,
-      });
-    }
   }
 }

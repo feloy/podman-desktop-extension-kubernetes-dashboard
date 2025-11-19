@@ -80,8 +80,9 @@ import { ConnectOptions, ContextPermission, ResourceCount } from '@podman-deskto
 import { TelemetryLoggerSymbol } from '/@/inject/symbol.js';
 import { ReplicaSetsResourceFactory } from '/@/resources/replicasets-resource-factory.js';
 import { DebuggerStepManager } from '/@/manager/debugger-step-manager.js';
-import { CustomResourceFactory } from '/@/resources/crd-resource-factory.js';
+import { CustomResourceFactory } from '/@/resources/custom-resource-factory.js';
 import { ConfigurationManager } from '/@/manager/configuration-manager.js';
+import { CRDResourceFactory } from '/@/resources/crd-resource-factory.js';
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 const DEFAULT_NAMESPACE = 'default';
@@ -203,6 +204,7 @@ export class ContextsManager implements ContextsApi {
         plural: config.customResource.plural,
         kind: config.customResource.kind,
       }),
+      new CRDResourceFactory(),
     ];
   }
 
