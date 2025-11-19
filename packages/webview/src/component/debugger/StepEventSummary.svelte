@@ -24,6 +24,12 @@ let ageAndCount = $derived(getAgeAndCount(stepInfo.event));
   </tr>
 
   <Title>Event</Title>
+  {#if stepInfo.event.related}
+    <tr>
+      <Cell>Related resource</Cell>
+      <Cell>{stepInfo.event.related.kind} / {stepInfo.event.related.name}</Cell>
+    </tr>
+  {/if}
   {#if stepInfo.event.type}
     <tr>
       <Cell>Type</Cell>
@@ -52,6 +58,15 @@ let ageAndCount = $derived(getAgeAndCount(stepInfo.event));
     <tr>
       <Cell>Message</Cell>
       <Cell>{stepInfo.event.message}</Cell>
+    </tr>
+  {/if}
+  {#if stepInfo.event.reportingComponent}
+    <tr>
+      <Cell>Reporting Component</Cell>
+      <Cell
+        >{stepInfo.event.reportingComponent}{stepInfo.event.reportingInstance
+          ? ` (${stepInfo.event.reportingInstance})`
+          : ''}</Cell>
     </tr>
   {/if}
 </Table>
