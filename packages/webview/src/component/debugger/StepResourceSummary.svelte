@@ -26,7 +26,7 @@ let newManagedFields = $derived(getNewManagedFields(stepInfo.object, stepInfo.pr
   {#if newManagedFields.length > 0}
     <Title>Field management</Title>
     <tr>
-      <td colspan="2" class="italic">
+      <td colspan="2" class="italic py-1">
         {#if newManagedFields.length === 1}
           A new Field management record was added to the object during the update
         {:else}
