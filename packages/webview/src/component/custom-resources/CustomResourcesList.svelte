@@ -1,12 +1,17 @@
 <script lang="ts">
-import { TableColumn, TableRow, TableSimpleColumn } from '@podman-desktop/ui-svelte';
+import { TableColumn, TableDurationColumn, TableRow, TableSimpleColumn } from '@podman-desktop/ui-svelte';
 import KubernetesObjectsList from '/@/component/objects/KubernetesObjectsList.svelte';
 import { getContext, onDestroy, onMount } from 'svelte';
 import KubernetesEmptyScreen from '/@/component/objects/KubernetesEmptyScreen.svelte';
 import { States } from '/@/state/states';
 import KubernetesIcon from '/@/component/icons/KubernetesIcon.svelte';
-import type { KubernetesNamespacedObjectUI } from '/@/component/objects/KubernetesObjectUI';
+import type { KubernetesObjectUI } from '/@/component/objects/KubernetesObjectUI';
 import type { Unsubscriber } from 'svelte/store';
+import type {
+  V1CustomResourceColumnDefinition,
+  V1CustomResourceDefinition,
+  V1ObjectMeta,
+} from '@kubernetes/client-node';
 
 const states = getContext<States>(States);
 const updateResource = states.stateUpdateResourceInfoUI;
@@ -15,8 +20,20 @@ const configuration = states.stateConfigurationInfoUI;
 let resourceSubscription: Unsubscriber | undefined = undefined;
 let subscriptions: Unsubscriber[] = [];
 
+interface KubernetesObjectUICustomResource extends KubernetesObjectUI {
+  metadata: V1ObjectMeta;
+  spec: Record<string, unknown>;
+  statusOriginal: Record<string, unknown>;
+}
+
 onMount(() => {
   subscriptions.push(configuration.subscribe());
+  subscriptions.push(
+    updateResource.subscribe({
+      contextName: undefined,
+      resourceName: 'customresourcedefinitions',
+    }),
+  );
 });
 
 onDestroy(() => {
@@ -24,14 +41,14 @@ onDestroy(() => {
   resourceSubscription?.();
 });
 
-let nameColumn = new TableColumn<{ name: string }, string>('Name', {
+let nameColumn = new TableColumn<KubernetesObjectUICustomResource, string>('Name', {
   width: '1.3fr',
   renderMapping: (res): string => res.name,
   renderer: TableSimpleColumn,
   comparator: (a, b): number => a.name.localeCompare(b.name),
 });
 
-const columns = [nameColumn];
+let columns = $state<TableColumn<KubernetesObjectUICustomResource, unknown>[]>();
 
 const row = new TableRow<{ name: string }>({
   selectable: (_service): boolean => true,
@@ -48,18 +65,77 @@ $effect(() => {
     });
   }
 });
+
+$effect(() => {
+  if (columns) {
+    return;
+  }
+  if (!configuration.data?.customResource) {
+    return;
+  }
+  const cr = configuration.data.customResource;
+  const info = updateResource.data?.resources.find(resource => resource.resourceName === 'customresourcedefinitions');
+  if (!info) {
+    return;
+  }
+  const crd = info.items.find(item => item.metadata?.name === `${cr.plural}.${cr.group}`) as V1CustomResourceDefinition;
+  if (!crd) {
+    return;
+  }
+  const printerColumns = crd.spec.versions.find(version => version.name === cr.version)?.additionalPrinterColumns;
+  if (!printerColumns) {
+    columns = [nameColumn] as TableColumn<KubernetesObjectUICustomResource, unknown>[];
+    return;
+  }
+  columns = [
+    nameColumn as TableColumn<KubernetesObjectUICustomResource, unknown>,
+    ...printerColumns.map(column => getColumn(column)),
+  ];
+});
+
+function getColumn(column: V1CustomResourceColumnDefinition): TableColumn<KubernetesObjectUICustomResource, unknown> {
+  if (column.type === 'date') {
+    return new TableColumn<KubernetesObjectUICustomResource, Date>(column.name, {
+      renderMapping: (res): Date => getValue(res, column.jsonPath) as Date,
+      renderer: TableDurationColumn,
+    }) as TableColumn<KubernetesObjectUICustomResource, unknown>;
+  }
+  return new TableColumn<KubernetesObjectUICustomResource, string>(column.name, {
+    renderMapping: (res): string => getValue(res, column.jsonPath) as string,
+    renderer: TableSimpleColumn,
+  }) as TableColumn<KubernetesObjectUICustomResource, unknown>;
+}
+
+function getValue(object: KubernetesObjectUICustomResource, jsonPath: string): unknown {
+  const value = jsonPath
+    .split('.')
+    .slice(1)
+    .reduce<unknown>((acc, key, index) => {
+      if (key === 'status' && index === 0) {
+        key = 'statusOriginal';
+      }
+      // eslint-disable-next-line no-null/no-null
+      if (typeof acc === 'object' && acc !== null) {
+        return (acc as Record<string, unknown>)[key];
+      }
+      return undefined;
+    }, object) as unknown;
+  return value?.toString() ?? '';
+}
 </script>
 
-{#if configuration.data?.customResource}
+{#if columns && configuration.data?.customResource}
   <KubernetesObjectsList
     kinds={[
       {
         resource: configuration.data.customResource.plural,
-        transformer: (res): KubernetesNamespacedObjectUI => ({
-          kind: configuration.data?.customResource?.kind ?? '',
+        transformer: (res): KubernetesObjectUICustomResource => ({
           status: 'RUNNING',
           name: res.metadata?.name ?? '',
-          namespace: res.metadata?.namespace ?? '',
+          kind: configuration.data?.customResource?.kind ?? '',
+          metadata: res.metadata ?? {},
+          spec: 'spec' in res ? (res.spec as Record<string, unknown>) : {},
+          statusOriginal: 'status' in res ? (res.status as Record<string, unknown>) : {},
         }),
       },
     ]}
