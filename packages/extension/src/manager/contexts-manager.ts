@@ -79,7 +79,7 @@ import { writeFile } from 'node:fs/promises';
 import { ContextPermission, ResourceCount } from '@podman-desktop/kubernetes-dashboard-extension-api';
 import { ReplicaSetsResourceFactory } from '/@/resources/replicasets-resource-factory.js';
 import { DebuggerStepManager } from '/@/manager/debugger-step-manager.js';
-import { CustomResourceFactory } from '/@/resources/crd-resource-factory.js';
+import { CustomResourceFactory } from '/@/resources/custom-resource-factory.js';
 import { ConfigurationManager } from '/@/manager/configuration-manager.js';
 
 const HEALTH_CHECK_TIMEOUT_MS = 5_000;

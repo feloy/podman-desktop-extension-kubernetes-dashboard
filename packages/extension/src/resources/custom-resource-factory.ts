@@ -24,7 +24,7 @@ import type { ResourceFactory } from './resource-factory.js';
 import { ResourceFactoryBase } from './resource-factory.js';
 import { ResourceInformer } from '/@/types/resource-informer.js';
 
-export interface CRDDefinition {
+export interface CustomResourceDefinition {
   isNamespaced: boolean;
   group: string;
   version: string;
@@ -33,7 +33,7 @@ export interface CRDDefinition {
 }
 
 export class CustomResourceFactory extends ResourceFactoryBase implements ResourceFactory {
-  constructor(private readonly definition: CRDDefinition) {
+  constructor(private readonly definition: CustomResourceDefinition) {
     super({
       resource: definition.plural,
       kind: definition.kind,
