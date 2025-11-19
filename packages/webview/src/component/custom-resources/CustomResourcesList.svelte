@@ -65,13 +65,15 @@ $effect(() => {
     ]}
     singular={configuration.data?.customResource?.kind ?? ''}
     plural={configuration.data?.customResource?.plural ?? ''}
-    isNamespaced={true}
+    isNamespaced={configuration.data.customResource.isNamespaced}
     icon={KubernetesIcon}
     columns={columns}
     row={row}>
     <!-- eslint-disable-next-line sonarjs/no-unused-vars -->
     {#snippet emptySnippet()}
-      <KubernetesEmptyScreen icon={KubernetesIcon} resources={['clusters']} />
+      {#if configuration.data?.customResource}
+        <KubernetesEmptyScreen icon={KubernetesIcon} resources={[configuration.data.customResource.plural]} />
+      {/if}
     {/snippet}
   </KubernetesObjectsList>
 {/if}
