@@ -2,10 +2,10 @@
 import { getContext, onDestroy, onMount } from 'svelte';
 import { Remote } from '/@/remote/remote';
 import { API_CONTEXTS, type ContextsApi } from '@kubernetes-dashboard/channels';
-import { NavPage, Table, TableColumn, TableRow } from '@podman-desktop/ui-svelte';
+import { Button, EmptyScreen, NavPage, Table, TableColumn, TableRow } from '@podman-desktop/ui-svelte';
 import { States } from '/@/state/states';
 import type { Unsubscriber } from 'svelte/store';
-import { faPlay, faStop } from '@fortawesome/free-solid-svg-icons';
+import { faBug, faBugs, faStop } from '@fortawesome/free-solid-svg-icons';
 import IconButton from '/@/component/button/IconButton.svelte';
 import NameKind from '/@/component/debugger/columns/NameKind.svelte';
 import Status from '/@/component/debugger/columns/Status.svelte';
@@ -69,7 +69,7 @@ const row = new TableRow<DebuggerStepUI>({});
         onClick={async (): Promise<void> => {
           await contextsApi.setStepByStepMode(true);
         }}
-        icon={faPlay} />
+        icon={faBug} />
       <IconButton
         enabled={debuggerInfo.data?.active}
         title="Stop debugger"
@@ -80,8 +80,30 @@ const row = new TableRow<DebuggerStepUI>({});
     </div>
   {/snippet}
   {#snippet content()}
-    <div class="flex min-w-full h-full">
-      <Table kind="Step" data={data ?? []} columns={columns} row={row}></Table>
-    </div>
+    {#if debuggerInfo.data?.active}
+      {#if data && data.length > 0}
+        <div class="flex min-w-full h-full">
+          <Table kind="Step" data={data} columns={columns} row={row}></Table>
+        </div>
+      {:else}
+        <EmptyScreen message="No changes recorded yet" icon={faBugs} title="No changes recorded" />
+      {/if}
+    {:else}
+      <div class="flex flex-col items-center justify-center h-full w-full">
+        <div class="w-[500px]">
+          <EmptyScreen
+            message="Press the button to start the debugger. When the debugger is running, every change to the cluster will be recorded and displayed here."
+            icon={faBugs}
+            title="The debugger is not running">
+            <Button
+              icon={faBug}
+              title="Start debugger"
+              onclick={async (): Promise<void> => {
+                await contextsApi.setStepByStepMode(true);
+              }}>Start debugger</Button>
+          </EmptyScreen>
+        </div>
+      </div>
+    {/if}
   {/snippet}
 </NavPage>
