@@ -95,18 +95,26 @@ onMount(() => {
     {#snippet tabsSnippet()}
       <Tab title="Summary" selected={$router.path.endsWith('/summary')} url="/debugger/{stepInfo.index}/summary" />
       {#if stepHelper.isResourceStepUI(stepInfo)}
+        {#if stepInfo.type === 'update'}
+          <Tab
+            title="Inspect previous"
+            selected={$router.path.endsWith('/yaml-previous')}
+            url="/debugger/{stepInfo.index}/yaml-previous" />
+        {/if}
         <Tab
-          title="Inspect previous"
-          selected={$router.path.endsWith('/yaml-previous')}
-          url="/debugger/{stepInfo.index}/yaml-previous" />
-        <Tab
-          title="Inspect next"
+          title={stepInfo.type === 'update'
+            ? 'Inspect next'
+            : stepInfo.type === 'delete'
+              ? 'Inspect deleted'
+              : 'Inspect added'}
           selected={$router.path.endsWith('/yaml-next')}
           url="/debugger/{stepInfo.index}/yaml-next" />
-        <Tab
-          title="Differences"
-          selected={$router.path.endsWith('/yaml-diff')}
-          url="/debugger/{stepInfo.index}/yaml-diff" />
+        {#if stepInfo.type === 'update'}
+          <Tab
+            title="Changes"
+            selected={$router.path.endsWith('/yaml-diff')}
+            url="/debugger/{stepInfo.index}/yaml-diff" />
+        {/if}
       {/if}
     {/snippet}
     {#snippet contentSnippet()}
