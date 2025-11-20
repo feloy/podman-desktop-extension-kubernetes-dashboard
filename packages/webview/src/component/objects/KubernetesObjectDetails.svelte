@@ -20,6 +20,7 @@ import MonacoEditor from '/@/component/editor/MonacoEditor.svelte';
 import { stringify } from 'yaml';
 import EditYAML from '/@/component/editor/EditYAML.svelte';
 import { Remote } from '/@/remote/remote';
+import ManagedFields from '/@/component/objects/ManagedFields.svelte';
 
 interface TabInfo<T extends KubernetesObject> {
   title: string;
@@ -207,6 +208,14 @@ function navigateToList(): void {
         title="Patch"
         selected={navigator.isTabSelected($router.path, 'patch')}
         url={navigator.getTabUrl($router.path, 'patch')} />
+      <Tab
+        title="Managed fields"
+        selected={navigator.isTabSelected($router.path, 'managed-fields')}
+        url={navigator.getTabUrl($router.path, 'managed-fields')} />
+      <Tab
+        title="Raw Managed fields"
+        selected={navigator.isTabSelected($router.path, 'raw-managed-fields')}
+        url={navigator.getTabUrl($router.path, 'raw-managed-fields')} />
       {#each tabs as tab (tab.url)}
         <Tab
           title={tab.title}
@@ -223,6 +232,12 @@ function navigateToList(): void {
       </Route>
       <Route path="/patch">
         <EditYAML content={stringify(editableObject)} />
+      </Route>
+      <Route path="/raw-managed-fields">
+        <MonacoEditor content={JSON.stringify(object?.metadata?.managedFields, undefined, 2)} language="json" />
+      </Route>
+      <Route path="/managed-fields">
+        <ManagedFields object={object} fields={object?.metadata?.managedFields ?? []} />
       </Route>
       {#each tabs as tab (tab.url)}
         <Route path={'/' + tab.url}>
