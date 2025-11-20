@@ -32,6 +32,7 @@ import CustomResourcesList from '/@/component/custom-resources/CustomResourcesLi
 
 // import globally the monaco environment
 import './monaco-environment';
+import CustomResourceDetails from '/@/component/custom-resources/CustomResourceDetails.svelte';
 
 interface Props {
   meta: TinroRouteMeta;
@@ -137,6 +138,10 @@ const { meta }: Props = $props();
 
   <Route path="/custom-resource">
     <CustomResourcesList />
+  </Route>
+
+  <Route path="/custom-resource/:name/:namespace/*" let:meta>
+    <CustomResourceDetails name={decodeURI(meta.params.name)} namespace={decodeURI(meta.params.namespace)} />
   </Route>
 
   <Route path="/portForward">
