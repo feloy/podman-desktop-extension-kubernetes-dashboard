@@ -88,6 +88,8 @@ module.exports = {
         500: tailwindColors.violet[500],
         600: tailwindColors.violet[600],
       },
+      yamlfield: "#3dc9b0",
+      yamlvalue: "#ce9178",
     },
   },
   plugins: [
