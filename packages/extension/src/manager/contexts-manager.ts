@@ -607,7 +607,8 @@ export class ContextsManager implements ContextsApi {
 
   protected handleStatus(status: V1Status, actionMsg: string): void {
     window.showNotification({
-      title: actionMsg,
+      // TODO: remove message from title when https://github.com/podman-desktop/podman-desktop/issues/14995 is fixed
+      title: `[${actionMsg}] ${status.message}`,
       body: status.message,
       type: 'error',
       highlight: true,
