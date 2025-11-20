@@ -5,13 +5,13 @@ import { getContext, onDestroy, onMount } from 'svelte';
 import KubernetesEmptyScreen from '/@/component/objects/KubernetesEmptyScreen.svelte';
 import { States } from '/@/state/states';
 import KubernetesIcon from '/@/component/icons/KubernetesIcon.svelte';
-import type { KubernetesObjectUI } from '/@/component/objects/KubernetesObjectUI';
 import type { Unsubscriber } from 'svelte/store';
-import type {
-  V1CustomResourceColumnDefinition,
-  V1CustomResourceDefinition,
-  V1ObjectMeta,
-} from '@kubernetes/client-node';
+import type { V1CustomResourceColumnDefinition } from '@kubernetes/client-node';
+import {
+  getPrinterColumns,
+  type KubernetesObjectUICustomResource,
+} from '/@/component/custom-resources/custom-resource';
+import Name from '/@/component/custom-resources/columns/Name.svelte';
 
 const states = getContext<States>(States);
 const updateResource = states.stateUpdateResourceInfoUI;
@@ -19,12 +19,6 @@ const configuration = states.stateConfigurationInfoUI;
 
 let resourceSubscription: Unsubscriber | undefined = undefined;
 let subscriptions: Unsubscriber[] = [];
-
-interface KubernetesObjectUICustomResource extends KubernetesObjectUI {
-  metadata: V1ObjectMeta;
-  spec: Record<string, unknown>;
-  statusOriginal: Record<string, unknown>;
-}
 
 onMount(() => {
   subscriptions.push(configuration.subscribe());
@@ -41,10 +35,9 @@ onDestroy(() => {
   resourceSubscription?.();
 });
 
-let nameColumn = new TableColumn<KubernetesObjectUICustomResource, string>('Name', {
+let nameColumn = new TableColumn<KubernetesObjectUICustomResource>('Name', {
   width: '1.3fr',
-  renderMapping: (res): string => res.name,
-  renderer: TableSimpleColumn,
+  renderer: Name,
   comparator: (a, b): number => a.name.localeCompare(b.name),
 });
 
@@ -73,16 +66,16 @@ $effect(() => {
   if (!configuration.data?.customResource) {
     return;
   }
-  const cr = configuration.data.customResource;
-  const info = updateResource.data?.resources.find(resource => resource.resourceName === 'customresourcedefinitions');
-  if (!info) {
+  if (!updateResource.data?.resources) {
     return;
   }
-  const crd = info.items.find(item => item.metadata?.name === `${cr.plural}.${cr.group}`) as V1CustomResourceDefinition;
-  if (!crd) {
+  const crdResources = updateResource.data?.resources.find(
+    resource => resource.resourceName === 'customresourcedefinitions',
+  );
+  if (!crdResources) {
     return;
   }
-  const printerColumns = crd.spec.versions.find(version => version.name === cr.version)?.additionalPrinterColumns;
+  const printerColumns = getPrinterColumns(crdResources, configuration.data.customResource);
   if (!printerColumns) {
     columns = [nameColumn] as TableColumn<KubernetesObjectUICustomResource, unknown>[];
     return;
@@ -132,6 +125,7 @@ function getValue(object: KubernetesObjectUICustomResource, jsonPath: string): u
         transformer: (res): KubernetesObjectUICustomResource => ({
           status: 'RUNNING',
           name: res.metadata?.name ?? '',
+          namespace: res.metadata?.namespace ?? '',
           kind: configuration.data?.customResource?.kind ?? '',
           metadata: res.metadata ?? {},
           spec: 'spec' in res ? (res.spec as Record<string, unknown>) : {},
