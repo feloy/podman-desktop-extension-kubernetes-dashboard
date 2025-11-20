@@ -834,7 +834,7 @@ export class ContextsManager implements ContextsApi {
     for (const manifest of manifests) {
       manifest.metadata ??= {};
       manifest.metadata.annotations ??= {};
-      manifest.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(manifest);
+      //      manifest.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(manifest);
       manifest.metadata.namespace ??= this.currentContext?.getNamespace() ?? DEFAULT_NAMESPACE;
       try {
         const result = await client.patch(
@@ -843,7 +843,7 @@ export class ContextsManager implements ContextsApi {
           undefined, // dryRun
           FIELD_MANAGER,
           undefined, // force
-          PatchStrategy.StrategicMergePatch,
+          PatchStrategy.ServerSideApply,
         );
         this.handleResult(result, `patch of ${manifest.kind} ${manifest.metadata?.name}`);
       } catch (error: unknown) {
