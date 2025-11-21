@@ -32,11 +32,13 @@ interface Props {
   columns: TableColumn<any>[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   row: TableRow<any>;
+  // true to list only the resources without owners
+  orphansOnly?: boolean;
 
   emptySnippet: Snippet;
 }
 
-let { kinds, singular, plural, isNamespaced, icon, columns, row, emptySnippet }: Props = $props();
+let { kinds, singular, plural, isNamespaced, icon, columns, row, emptySnippet, orphansOnly = false }: Props = $props();
 
 const dependencyAccessor = getContext<DependencyAccessor>(DependencyAccessor);
 const objectHelper = dependencyAccessor.get<KubernetesObjectUIHelper>(KubernetesObjectUIHelper);
@@ -59,6 +61,9 @@ const objects = $derived(
   kinds.flatMap(kind =>
     filterResources(updateResource?.data?.resources ?? [], kind.resource)
       .flatMap(resourceItems => resourceItems.items)
+      .filter(
+        object => !orphansOnly || !object.metadata?.ownerReferences || object.metadata?.ownerReferences?.length === 0,
+      )
       .filter(object => (searchTerm ? objectHelper.findMatchInLeaves(object, searchTerm) : true))
       .map(object => kind.transformer(object)),
   ),
