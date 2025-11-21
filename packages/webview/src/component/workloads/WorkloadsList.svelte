@@ -3,7 +3,7 @@ import { TableColumn, TableDurationColumn, TableRow } from '@podman-desktop/ui-s
 import moment from 'moment';
 import NameColumn from '/@/component/objects/columns/Name.svelte';
 import StatusColumn from '/@/component/objects/columns/Status.svelte';
-import KubernetesObjectsList from '/@/component/objects/KubernetesObjectsList.svelte';
+import KubernetesObjectsList, { type Kind } from '/@/component/objects/KubernetesObjectsList.svelte';
 import { getContext, onDestroy, onMount } from 'svelte';
 import { DependencyAccessor } from '/@/inject/dependency-accessor';
 import KubernetesEmptyScreen from '/@/component/objects/KubernetesEmptyScreen.svelte';
@@ -23,6 +23,8 @@ import { JobHelper } from '/@/component/jobs/job-helper';
 import { PodHelper } from '/@/component/pods/pod-helper';
 import type { Unsubscriber } from 'svelte/store';
 import KubernetesIcon from '/@/component/icons/KubernetesIcon.svelte';
+import type { KubernetesObjectUICustomResource } from '/@/component/custom-resources/custom-resource';
+import type { KubernetesObject } from '@kubernetes/client-node';
 
 const dependencyAccessor = getContext<DependencyAccessor>(DependencyAccessor);
 const deploymenttHelper = dependencyAccessor.get<DeploymentHelper>(DeploymentHelper);
@@ -70,6 +72,7 @@ const columns = [
 
 const states = getContext<States>(States);
 const updateResource = states.stateUpdateResourceInfoUI;
+const configuration = states.stateConfigurationInfoUI;
 
 function getChildren(
   workload: DeploymentUI | ReplicaSetUI | CronJobUI | JobUI | PodUI,
@@ -106,8 +109,10 @@ const row = new TableRow<DeploymentUI | ReplicaSetUI | CronJobUI | JobUI | PodUI
 });
 
 let unsubscribers: Unsubscriber[] = [];
+let resourceSubscription: Unsubscriber | undefined = undefined;
 
 onMount(() => {
+  unsubscribers.push(configuration.subscribe());
   for (const resource of ['deployments', 'replicasets', 'cronjobs', 'jobs', 'pods']) {
     unsubscribers.push(
       updateResource.subscribe({
@@ -118,40 +123,87 @@ onMount(() => {
   }
 });
 
+const hardcodedKinds: Kind[] = [
+  {
+    resource: 'deployments',
+    transformer: deploymenttHelper.getDeploymentUI.bind(deploymenttHelper),
+  },
+  {
+    resource: 'cronjobs',
+    transformer: cronjobHelper.getCronJobUI.bind(cronjobHelper),
+  },
+  {
+    resource: 'jobs',
+    transformer: jobHelper.getJobUI.bind(jobHelper),
+  },
+  {
+    resource: 'pods',
+    transformer: podHelper.getPodUI.bind(podHelper),
+  },
+];
+
+let kinds = $state<Kind[]>();
+
+$effect(() => {
+  if (kinds) {
+    return;
+  }
+  if (configuration.data) {
+    if (configuration.data.customResource) {
+      const newKinds = [
+        ...hardcodedKinds,
+        {
+          resource: configuration.data.customResource.plural,
+          transformer: (res: KubernetesObject): KubernetesObjectUICustomResource => ({
+            status: 'RUNNING',
+            name: res.metadata?.name ?? '',
+            namespace: res.metadata?.namespace ?? '',
+            kind: configuration.data?.customResource?.kind ?? '',
+            metadata: res.metadata ?? {},
+            spec: 'spec' in res ? (res.spec as Record<string, unknown>) : {},
+            statusOriginal: 'status' in res ? (res.status as Record<string, unknown>) : {},
+          }),
+        },
+      ];
+      kinds = newKinds;
+    } else {
+      kinds = hardcodedKinds;
+    }
+  }
+});
+
+let previousResource = $state<string>();
+$effect(() => {
+  if (previousResource !== configuration.data?.customResource?.plural) {
+    previousResource = configuration.data?.customResource?.plural ?? '';
+    resourceSubscription?.();
+    resourceSubscription = updateResource.subscribe({
+      contextName: undefined, // ask for resources in the default context
+      resourceName: previousResource,
+    });
+  }
+});
+
 onDestroy(() => {
   unsubscribers.forEach(unsubscriber => unsubscriber());
   unsubscribers = [];
+  resourceSubscription?.();
 });
 </script>
 
-<KubernetesObjectsList
-  kinds={[
-    {
-      resource: 'deployments',
-      transformer: deploymenttHelper.getDeploymentUI.bind(deploymenttHelper),
-    },
-    {
-      resource: 'cronjobs',
-      transformer: cronjobHelper.getCronJobUI.bind(cronjobHelper),
-    },
-    {
-      resource: 'jobs',
-      transformer: jobHelper.getJobUI.bind(jobHelper),
-    },
-    {
-      resource: 'pods',
-      transformer: podHelper.getPodUI.bind(podHelper),
-    },
-  ]}
-  singular="workload"
-  plural="workloads"
-  isNamespaced={true}
-  icon={KubernetesIcon}
-  columns={columns}
-  row={row}
-  orphansOnly={true}>
-  <!-- eslint-disable-next-line sonarjs/no-unused-vars -->
-  {#snippet emptySnippet()}
-    <KubernetesEmptyScreen icon={KubernetesIcon} resources={['deployments', 'cronjobs', 'jobs']} />
-  {/snippet}
-</KubernetesObjectsList>
+{#if kinds}
+  <KubernetesObjectsList
+    kinds={kinds}
+    singular="workload"
+    plural="workloads"
+    isNamespaced={true}
+    icon={KubernetesIcon}
+    columns={columns}
+    row={row}
+    orphansOnly={true}>
+    <!-- eslint-disable-next-line sonarjs/no-unused-vars -->
+    {#snippet emptySnippet()}
+      <KubernetesEmptyScreen icon={KubernetesIcon} resources={['deployments', 'cronjobs', 'jobs']} />
+    {/snippet}
+  </KubernetesObjectsList>
+{/if}

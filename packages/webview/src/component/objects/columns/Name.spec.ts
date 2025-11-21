@@ -26,6 +26,9 @@ import type { KubernetesNamespacedObjectUI, KubernetesObjectUI } from '/@/compon
 import { Navigator } from '/@/navigation/navigator';
 import { KubernetesObjectUIHelper } from '/@/component/objects/kubernetes-object-ui-helper';
 import { DependencyMocks } from '/@/tests/dependency-mocks';
+import { StatesMocks } from '/@/tests/state-mocks';
+import type { ConfigurationInfo } from '@kubernetes-dashboard/channels';
+import { FakeStateObject } from '/@/state/util/fake-state-object.svelte';
 
 const node: KubernetesObjectUI = {
   kind: 'Node',
@@ -42,12 +45,18 @@ const deployment: KubernetesNamespacedObjectUI = {
 };
 
 const dependencyMocks = new DependencyMocks();
+const statesMocks = new StatesMocks();
+let configurationMock: FakeStateObject<ConfigurationInfo, void>;
 
 beforeEach(() => {
   vi.resetAllMocks();
   dependencyMocks.reset();
   dependencyMocks.mock(Navigator);
   dependencyMocks.mock(KubernetesObjectUIHelper);
+
+  statesMocks.reset();
+  configurationMock = new FakeStateObject();
+  statesMocks.mock<ConfigurationInfo, void>('stateConfigurationInfoUI', configurationMock);
 });
 
 test('Expect simple column styling', async () => {
