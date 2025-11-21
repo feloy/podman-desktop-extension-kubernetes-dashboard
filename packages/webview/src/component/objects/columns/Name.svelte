@@ -3,7 +3,7 @@ import { Navigator } from '/@/navigation/navigator';
 import { KubernetesObjectUIHelper } from '/@/component/objects/kubernetes-object-ui-helper';
 
 import type { ObjectProps } from './object-props';
-import { getContext, onMount } from 'svelte';
+import { getContext } from 'svelte';
 import { DependencyAccessor } from '/@/inject/dependency-accessor';
 import { States } from '/@/state/states';
 import { router } from 'tinro';
@@ -15,6 +15,7 @@ const navigator = dependencyAccessor.get<Navigator>(Navigator);
 const objectHelper = dependencyAccessor.get<KubernetesObjectUIHelper>(KubernetesObjectUIHelper);
 
 const states = getContext<States>(States);
+// it is not necessary to subscribe, as the parent already does it
 const configuration = states.stateConfigurationInfoUI;
 
 async function openDetails(): Promise<void> {
@@ -40,10 +41,6 @@ async function openDetails(): Promise<void> {
     });
   }
 }
-
-onMount(() => {
-  return configuration.subscribe();
-});
 </script>
 
 <button class="hover:cursor-pointer flex flex-col max-w-full text-left" onclick={openDetails}>
