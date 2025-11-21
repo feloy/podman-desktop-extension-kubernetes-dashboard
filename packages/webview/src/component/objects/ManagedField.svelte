@@ -98,7 +98,6 @@ function subFields(key: string, fields: V1ManagedFieldsEntry[], value: unknown):
           for (const keys of keysList) {
             if (ownsValueByKey(JSON.parse(keys.substring(2)), value)) {
               subField = field.fieldsV1[keys];
-              console.log('==> subField', subField);
               break;
             }
           }
