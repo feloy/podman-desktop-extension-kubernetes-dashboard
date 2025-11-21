@@ -33,6 +33,7 @@ import CustomResourcesList from '/@/component/custom-resources/CustomResourcesLi
 // import globally the monaco environment
 import './monaco-environment';
 import CustomResourceDetails from '/@/component/custom-resources/CustomResourceDetails.svelte';
+import WorkloadsList from '/@/component/workloads/WorkloadsList.svelte';
 
 interface Props {
   meta: TinroRouteMeta;
@@ -62,6 +63,10 @@ const { meta }: Props = $props();
 
   <Route path="/namespaces/:name/*" let:meta>
     <NamespaceDetails name={decodeURI(meta.params.name)} />
+  </Route>
+
+  <Route path="/workloads">
+    <WorkloadsList />
   </Route>
 
   <Route path="/deployments">
