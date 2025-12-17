@@ -65,10 +65,43 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: '1.25'
-      - run: |
+      - name: install envtest-start and setup-envtest binaries
+        shell: bash
+        run: |
           go install github.com/feloy/envtest-start@1ef2dc886c4d6468ee4eb814cebb18e8a55a1520
           go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.22
-          setup-envtest use -p path
+
+      - name: install envtest with setup-envtest
+        id: setup-envtest
+        shell: bash
+        run: |
+          export KUBEBUILDER_ASSETS=$(setup-envtest use -p path)
+          echo "KUBEBUILDER_ASSETS=$KUBEBUILDER_ASSETS" >> $GITHUB_OUTPUT
+
+      - name: run envtest-start
+        id: run-envtest
+        env:
+          KUBEBUILDER_ASSETS: ${{ steps.setup-envtest.outputs.KUBEBUILDER_ASSETS }}
+        shell: bash
+        run: |
+          envtest-start &
+          ENVTEST_START_PID=$!
+          echo "ENVTEST_START_PID=$ENVTEST_START_PID" >> $GITHUB_OUTPUT
+
+      - name: check cluster is accessible, should show a service named "kubernetes"
+        env:
+          KUBEBUILDER_ASSETS: ${{ steps.setup-envtest.outputs.KUBEBUILDER_ASSETS }}
+        shell: bash
+        run: |
+          sleep 10
+          KUBECONFIG=/tmp/envtest-kubeconfig $KUBEBUILDER_ASSETS/kubectl get all
+      
+      - name: stop envtest cluster
+        env:
+          ENVTEST_START_PID: ${{ steps.run-envtest.outputs.ENVTEST_START_PID }}
+        shell: bash
+        run: |
+          kill $ENVTEST_START_PID
 
 #      - name: Revert unprivileged user namespace restrictions in Ubuntu 24.04
 #        if: runner.os == 'Linux'
