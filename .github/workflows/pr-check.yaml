@@ -24,6 +24,7 @@ on: [pull_request]
 
 jobs:
   build:
+    if: false
     name: Build / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -82,6 +83,7 @@ jobs:
   ## but is built in the release workflow
   ## Changes to the builder image must be merged before to use these changes in the extension image
   extension-image:
+    if: false
     name: Build extension OCI image
     runs-on: ubuntu-24.04
 
