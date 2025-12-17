@@ -68,7 +68,7 @@ jobs:
       - name: install envtest-start and setup-envtest binaries
         shell: bash
         run: |
-          go install github.com/feloy/envtest-start@1ef2dc886c4d6468ee4eb814cebb18e8a55a1520
+          go install github.com/feloy/envtest-start@563d135d56015062c35bd20f8c14ab5fcbee38ae
           go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.22
 
       - name: install envtest with setup-envtest
@@ -84,17 +84,19 @@ jobs:
           KUBEBUILDER_ASSETS: ${{ steps.setup-envtest.outputs.KUBEBUILDER_ASSETS }}
         shell: bash
         run: |
-          envtest-start &
+          KUBECONFIG=${{ runner.temp }}/envtest-kubeconfig
+          envtest-start $KUBECONFIG &
           ENVTEST_START_PID=$!
           echo "ENVTEST_START_PID=$ENVTEST_START_PID" >> $GITHUB_OUTPUT
+          echo "KUBECONFIG=$KUBECONFIG" >> $GITHUB_OUTPUT
 
       - name: check cluster is accessible, should show a service named "kubernetes"
         env:
           KUBEBUILDER_ASSETS: ${{ steps.setup-envtest.outputs.KUBEBUILDER_ASSETS }}
+          KUBECONFIG: ${{ steps.run-envtest.outputs.KUBECONFIG }}
         shell: bash
         run: |
-          sleep 10
-          KUBECONFIG=/tmp/envtest-kubeconfig $KUBEBUILDER_ASSETS/kubectl get all
+          $KUBEBUILDER_ASSETS/kubectl get all | grep "service/kubernetes"
       
       - name: stop envtest cluster
         env:
@@ -102,6 +104,7 @@ jobs:
         shell: bash
         run: |
           kill $ENVTEST_START_PID
+          sleep 3
 
 #      - name: Revert unprivileged user namespace restrictions in Ubuntu 24.04
 #        if: runner.os == 'Linux'
