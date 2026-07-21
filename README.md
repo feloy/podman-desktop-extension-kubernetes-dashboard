@@ -98,6 +98,208 @@ After each change, you may have to restart the extension from the `Extensions > 
 
 ## Running e2e tests
 
+### In a Linux container (e.g. on macOS via Docker/Podman)
+
+This section covers running E2E tests from inside a Linux arm64 container where `podman`,
+`brew`, and macOS-specific tools (`hdiutil`, `codesign`) are unavailable.
+
+#### Pre-requisites
+
+Go and kubectl are expected to be pre-installed in the container image. Add the Go bin
+directory to your PATH (also add this to `~/.bashrc` for persistence):
+
+```sh
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+Install envtest tools:
+
+```sh
+go install github.com/feloy/envtest-start@v0.1.0
+go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.22
+```
+
+Install Xvfb and the shared libraries required by the Electron binary:
+
+```sh
+# Fedora / RHEL-based containers
+sudo dnf install -y \
+  xorg-x11-server-Xvfb \
+  nspr nss \
+  atk at-spi2-atk at-spi2-core \
+  cups-libs dbus-libs dbus-daemon \
+  cairo gtk3 pango \
+  libXcomposite libXdamage libXfixes libXrandr \
+  alsa-lib
+
+# Debian / Ubuntu-based containers
+# sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+#   libcups2 libdbus-1-3 dbus libcairo2 libgtk-3-0 libpango-1.0-0 \
+#   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libasound2 libatspi2.0-0
+```
+
+Start the D-Bus system bus (Electron logs warnings without it, and some GTK
+operations may fail):
+
+```sh
+sudo mkdir -p /run/dbus
+sudo dbus-daemon --system --fork
+```
+
+#### Run the tests
+
+##### Step 1: Install a Podman Desktop testing binary
+
+Download the latest nightly Linux arm64 build from https://github.com/podman-desktop/testing-prereleases:
+
+```sh
+LATEST_TAG=$(gh api repos/podman-desktop/testing-prereleases/releases \
+  --jq 'sort_by(.created_at) | reverse | first(.[] | select(.assets | length > 0)) | .tag_name')
+
+gh release download "$LATEST_TAG" \
+  --repo podman-desktop/testing-prereleases \
+  --pattern '*-arm64.tar.gz'
+
+mkdir -p tests/playwright/tests/PodmanDesktop
+tar xz --strip-components=1 \
+  -C tests/playwright/tests/PodmanDesktop \
+  -f podman-desktop-*-arm64.tar.gz
+rm podman-desktop-*-arm64.tar.gz
+```
+
+Containers typically have a 64 MB `/dev/shm`, which is not enough for Chromium
+and causes renderer crashes. Create a wrapper script that passes
+`--disable-dev-shm-usage` to the Electron binary:
+
+```sh
+PDDIR=tests/playwright/tests/PodmanDesktop
+mv "$PDDIR/podman-desktop" "$PDDIR/podman-desktop.real"
+
+cat > "$PDDIR/podman-desktop" << 'WRAPPER'
+#!/bin/bash
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$DIR/podman-desktop.real" --disable-dev-shm-usage "$@"
+WRAPPER
+chmod +x "$PDDIR/podman-desktop"
+```
+
+##### Step 2: Build the extension plugin
+
+Without `podman`, replicate the container export by copying the build output directly:
+
+```sh
+CI=true pnpm install
+pnpm build
+
+PLUGINS_DIR=tests/playwright/tests/playwright/output/kubernetes-dashboard-tests/plugins/extension
+mkdir -p "$PLUGINS_DIR"
+
+cp -r packages/extension/dist "$PLUGINS_DIR/"
+cp packages/extension/package.json "$PLUGINS_DIR/"
+cp packages/extension/*.png "$PLUGINS_DIR/"
+cp -r packages/extension/media "$PLUGINS_DIR/media" 2>/dev/null || true
+cp pnpm-workspace.yaml "$PLUGINS_DIR/"
+mkdir -p "$PLUGINS_DIR/packages/rpc" "$PLUGINS_DIR/packages/channels" "$PLUGINS_DIR/packages/api"
+cp packages/rpc/package.json "$PLUGINS_DIR/packages/rpc/"
+cp packages/channels/package.json "$PLUGINS_DIR/packages/channels/"
+cp packages/api/package.json "$PLUGINS_DIR/packages/api/"
+cp LICENSE "$PLUGINS_DIR/"
+cp README.md "$PLUGINS_DIR/"
+
+ISOMORPHIC_WS_VERSION=$(node -e "console.log(require('./node_modules/isomorphic-ws/package.json').version)")
+python3 -c "
+import json, sys
+with open('$PLUGINS_DIR/package.json') as f:
+    d = json.load(f)
+d.setdefault('dependencies', {})['isomorphic-ws'] = sys.argv[1]
+d.pop('devDependencies', None)
+d.pop('scripts', None)
+with open('$PLUGINS_DIR/package.json', 'w') as f:
+    json.dump(d, f, indent=2)
+" "$ISOMORPHIC_WS_VERSION"
+
+pnpm --dir "$PLUGINS_DIR" install --prod
+```
+
+##### Step 3: Start the envtest Kubernetes cluster
+
+```sh
+export KUBEBUILDER_ASSETS=$(setup-envtest use -p path)
+
+envtest-start --users 1 /tmp/envtest-kubeconfig &
+ENVTEST_START_PID=$!
+
+while [ ! -f /tmp/envtest-kubeconfig ]; do sleep 1; done
+"$KUBEBUILDER_ASSETS/kubectl" --kubeconfig /tmp/envtest-kubeconfig get all | grep "service/kubernetes"
+```
+
+##### Step 4: Patch the test runner for headless operation
+
+Without a GPU, Chromium cannot produce frames for screenshots or video
+recording. The `@podman-desktop/tests-playwright` runner must be patched to
+skip these operations when the `NO_GPU` environment variable is set:
+
+```sh
+sed -i.bak '
+  /async startTracing()/{
+    N;N;N;N;N
+    s/screenshots: !0/screenshots: !process.env.NO_GPU/
+    s/}), await this.getPage().screenshot();/});\n\t\tif (!process.env.NO_GPU) await this.getPage().screenshot();/
+  }
+  /async screenshot(e) {/{
+    N
+    s/await this.getPage().screenshot(\(.*\));/if (!process.env.NO_GPU) await this.getPage().screenshot(\1);/
+  }
+  /recordVideo: a,/{
+    s/recordVideo: a,/recordVideo: process.env.NO_GPU ? undefined : a,/
+  }
+' node_modules/@podman-desktop/tests-playwright/dist/index.js
+```
+
+##### Step 5: Run the tests
+
+```sh
+cp /tmp/envtest-kubeconfig tests/resources/envtest-kubeconfig
+cp /tmp/user1-kubeconfig tests/resources/envtest-kubeconfig-user1
+
+NO_GPU=true \
+EXTENSION_PREINSTALLED=true \
+PODMAN_DESKTOP_BINARY="$(pwd)/tests/playwright/tests/PodmanDesktop/podman-desktop" \
+KUBEBUILDER_ASSETS="$KUBEBUILDER_ASSETS" \
+NODE_OPTIONS=--no-experimental-strip-types \
+pnpm test:e2e:integration
+```
+
+##### Step 6: Stop the cluster when done
+
+```sh
+kill $ENVTEST_START_PID
+```
+
+#### Restarting the tests
+
+**Quick restart** — only the cluster needs to be restarted: redo steps 3 and 5, keeping `EXTENSION_PREINSTALLED=true`.
+
+**Full clean restart** (e.g. after modifying extension sources) — after stopping the cluster, reset the Podman Desktop profile:
+
+```sh
+rm -rf tests/playwright/tests/playwright/
+```
+
+Then redo steps 2, 3, 4, and 5.
+
+#### Cleanup
+
+After stopping the cluster (step 6), remove all generated files:
+
+```sh
+rm -rf tests/playwright/tests/
+rm -f tests/resources/envtest-kubeconfig tests/resources/envtest-kubeconfig-user1
+rm -f /tmp/envtest-kubeconfig /tmp/user1-kubeconfig
+```
+
+---
+
 ### On macOS (Apple Silicon)
 
 #### Pre-requisites
