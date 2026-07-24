@@ -105,21 +105,41 @@ This section covers running E2E tests from inside a Linux arm64 container where 
 
 #### Pre-requisites
 
-Go and kubectl are expected to be pre-installed in the container image. Add the Go bin
-directory to your PATH (also add this to `~/.bashrc` for persistence):
+These tools may already be installed in your container image. Use the table
+below to check, and install anything that is missing.
+
+| Tool                 | Check command                                             |
+| -------------------- | --------------------------------------------------------- |
+| Go                   | `go version`                                              |
+| kubectl              | `kubectl version --client`                                |
+| Go PATH              | `echo $PATH \| grep -q "$(go env GOPATH)/bin" && echo ok` |
+| envtest tools        | `command -v envtest-start && command -v setup-envtest`    |
+| Xvfb + Electron libs | `command -v Xvfb`                                         |
+
+##### Go
+
+Install Go following <https://go.dev/doc/install>.
+
+##### kubectl
+
+Install kubectl following <https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/>.
+
+##### Go PATH
+
+Add the Go bin directory to your PATH (also add this to `~/.bashrc` for persistence):
 
 ```sh
 export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 
-Install envtest tools:
+##### envtest tools
 
 ```sh
 go install github.com/feloy/envtest-start@v0.1.0
 go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.22
 ```
 
-Install Xvfb and the shared libraries required by the Electron binary:
+##### Xvfb and Electron shared libraries
 
 ```sh
 # Fedora / RHEL-based containers
@@ -130,16 +150,18 @@ sudo dnf install -y \
   cups-libs dbus-libs dbus-daemon \
   cairo gtk3 pango \
   libXcomposite libXdamage libXfixes libXrandr \
-  alsa-lib
+  mesa-libgbm alsa-lib
 
 # Debian / Ubuntu-based containers
 # sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
 #   libcups2 libdbus-1-3 dbus libcairo2 libgtk-3-0 libpango-1.0-0 \
-#   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libasound2 libatspi2.0-0
+#   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 libatspi2.0-0
 ```
 
+#### Runtime setup
+
 Start the D-Bus system bus (Electron logs warnings without it, and some GTK
-operations may fail):
+operations may fail). This must be done each time the container starts:
 
 ```sh
 sudo mkdir -p /run/dbus
@@ -297,6 +319,110 @@ rm -rf tests/playwright/tests/
 rm -f tests/resources/envtest-kubeconfig tests/resources/envtest-kubeconfig-user1
 rm -f /tmp/envtest-kubeconfig /tmp/user1-kubeconfig
 ```
+
+#### Running Podman Desktop interactively with Playwright
+
+Instead of running the E2E test suite, you can launch Podman Desktop with the
+extension loaded and interact with it programmatically through Playwright's CDP
+connection. This is useful for manual exploration, AI-assisted interaction (e.g.
+with a Playwright MCP server), or ad-hoc scripting.
+
+The pre-requisites and steps 1–3 above must be completed first (Podman Desktop
+binary installed, extension plugin built, envtest cluster running).
+
+##### Verify shared library dependencies
+
+Before launching Podman Desktop, check that all shared libraries required by the
+Electron binary are available:
+
+```sh
+ldd tests/playwright/tests/PodmanDesktop/podman-desktop.real | grep "not found"
+```
+
+If any libraries are missing, install them (see the pre-requisites section above
+for the package list).
+
+##### Start Xvfb and D-Bus
+
+```sh
+Xvfb :99 -screen 0 1920x1080x24 &
+sudo mkdir -p /run/dbus
+sudo dbus-daemon --system --fork
+```
+
+##### Create the Podman Desktop profile
+
+```sh
+CUSTOM_FOLDER="$(pwd)/tests/playwright/tests/playwright/output/kubernetes-dashboard-tests"
+mkdir -p "$CUSTOM_FOLDER/configuration"
+
+cat > "$CUSTOM_FOLDER/configuration/settings.json" << 'EOF'
+{
+  "extensions.disabled": [
+    "podman-desktop.compose",
+    "podman-desktop.docker",
+    "podman-desktop.kind",
+    "podman-desktop.kube-context",
+    "podman-desktop.kubectl-cli",
+    "podman-desktop.lima",
+    "podman-desktop.minikube",
+    "podman-desktop.onboarding",
+    "podman-desktop.podman"
+  ]
+}
+EOF
+```
+
+##### Copy the kubeconfig
+
+```sh
+mkdir -p ~/.kube
+cp /tmp/envtest-kubeconfig ~/.kube/config
+```
+
+##### Launch Podman Desktop with remote debugging
+
+```sh
+DISPLAY=:99 \
+PODMAN_DESKTOP_HOME_DIR="$CUSTOM_FOLDER" \
+XDG_SESSION_TYPE=x11 \
+$(pwd)/tests/playwright/tests/PodmanDesktop/podman-desktop \
+  --remote-debugging-port=9222 &
+```
+
+Wait a few seconds for the application to start. The extension will be
+activated automatically from the `plugins/extension/` directory inside the
+profile. You can verify the CDP endpoint is available:
+
+```sh
+curl -s http://127.0.0.1:9222/json
+```
+
+##### Connect with Playwright
+
+You can now connect to the running Electron application via CDP, for example
+from a Node.js script:
+
+```js
+const { chromium } = require('playwright');
+
+const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
+const pages = browser.contexts()[0].pages();
+// pages[0] is the Podman Desktop shell
+// pages[1] is the Kubernetes Dashboard extension webview (available after
+//          clicking the "Kubernetes" link in the sidebar)
+const page = pages[0];
+
+// interact with the application
+await page.screenshot({ path: 'screenshot.png' });
+
+await browser.close();
+```
+
+Or, if you are using a Playwright MCP server, it can connect to the same
+`http://127.0.0.1:9222` CDP endpoint. After clicking the **Kubernetes** link
+in the sidebar, the extension webview opens as a separate tab (tab index 1) —
+switch to it to interact with the Kubernetes Dashboard.
 
 ---
 
