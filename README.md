@@ -98,6 +98,334 @@ After each change, you may have to restart the extension from the `Extensions > 
 
 ## Running e2e tests
 
+### In a Linux container (e.g. on macOS via Docker/Podman)
+
+This section covers running E2E tests from inside a Linux arm64 container where `podman`,
+`brew`, and macOS-specific tools (`hdiutil`, `codesign`) are unavailable.
+
+#### Pre-requisites
+
+These tools may already be installed in your container image. Use the table
+below to check, and install anything that is missing.
+
+| Tool                 | Check command                                             |
+| -------------------- | --------------------------------------------------------- |
+| Go                   | `go version`                                              |
+| kubectl              | `kubectl version --client`                                |
+| Go PATH              | `echo $PATH \| grep -q "$(go env GOPATH)/bin" && echo ok` |
+| envtest tools        | `command -v envtest-start && command -v setup-envtest`    |
+| Xvfb + Electron libs | `command -v Xvfb`                                         |
+
+##### Go
+
+Install Go following <https://go.dev/doc/install>.
+
+##### kubectl
+
+Install kubectl following <https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/>.
+
+##### Go PATH
+
+Add the Go bin directory to your PATH (also add this to `~/.bashrc` for persistence):
+
+```sh
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+##### envtest tools
+
+```sh
+go install github.com/feloy/envtest-start@v0.1.0
+go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.22
+```
+
+##### Xvfb and Electron shared libraries
+
+```sh
+# Fedora / RHEL-based containers
+sudo dnf install -y \
+  xorg-x11-server-Xvfb \
+  nspr nss \
+  atk at-spi2-atk at-spi2-core \
+  cups-libs dbus-libs dbus-daemon \
+  cairo gtk3 pango \
+  libXcomposite libXdamage libXfixes libXrandr \
+  mesa-libgbm alsa-lib
+
+# Debian / Ubuntu-based containers
+# sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+#   libcups2 libdbus-1-3 dbus libcairo2 libgtk-3-0 libpango-1.0-0 \
+#   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 libatspi2.0-0
+```
+
+#### Runtime setup
+
+Start the D-Bus system bus (Electron logs warnings without it, and some GTK
+operations may fail). This must be done each time the container starts:
+
+```sh
+sudo mkdir -p /run/dbus
+sudo dbus-daemon --system --fork
+```
+
+#### Run the tests
+
+##### Step 1: Install a Podman Desktop testing binary
+
+Download the latest nightly Linux arm64 build from https://github.com/podman-desktop/testing-prereleases:
+
+```sh
+LATEST_TAG=$(gh api repos/podman-desktop/testing-prereleases/releases \
+  --jq 'sort_by(.created_at) | reverse | first(.[] | select(.assets | length > 0)) | .tag_name')
+
+gh release download "$LATEST_TAG" \
+  --repo podman-desktop/testing-prereleases \
+  --pattern '*-arm64.tar.gz'
+
+mkdir -p tests/playwright/tests/PodmanDesktop
+tar xz --strip-components=1 \
+  -C tests/playwright/tests/PodmanDesktop \
+  -f podman-desktop-*-arm64.tar.gz
+rm podman-desktop-*-arm64.tar.gz
+```
+
+Containers typically have a 64 MB `/dev/shm`, which is not enough for Chromium
+and causes renderer crashes. Create a wrapper script that passes
+`--disable-dev-shm-usage` to the Electron binary:
+
+```sh
+PDDIR=tests/playwright/tests/PodmanDesktop
+mv "$PDDIR/podman-desktop" "$PDDIR/podman-desktop.real"
+
+cat > "$PDDIR/podman-desktop" << 'WRAPPER'
+#!/bin/bash
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$DIR/podman-desktop.real" --disable-dev-shm-usage "$@"
+WRAPPER
+chmod +x "$PDDIR/podman-desktop"
+```
+
+##### Step 2: Build the extension plugin
+
+Without `podman`, replicate the container export by copying the build output directly:
+
+```sh
+CI=true pnpm install
+pnpm build
+
+PLUGINS_DIR=tests/playwright/tests/playwright/output/kubernetes-dashboard-tests/plugins/extension
+mkdir -p "$PLUGINS_DIR"
+
+cp -r packages/extension/dist "$PLUGINS_DIR/"
+cp packages/extension/package.json "$PLUGINS_DIR/"
+cp packages/extension/*.png "$PLUGINS_DIR/"
+cp -r packages/extension/media "$PLUGINS_DIR/media" 2>/dev/null || true
+cp pnpm-workspace.yaml "$PLUGINS_DIR/"
+mkdir -p "$PLUGINS_DIR/packages/rpc" "$PLUGINS_DIR/packages/channels" "$PLUGINS_DIR/packages/api"
+cp packages/rpc/package.json "$PLUGINS_DIR/packages/rpc/"
+cp packages/channels/package.json "$PLUGINS_DIR/packages/channels/"
+cp packages/api/package.json "$PLUGINS_DIR/packages/api/"
+cp LICENSE "$PLUGINS_DIR/"
+cp README.md "$PLUGINS_DIR/"
+
+ISOMORPHIC_WS_VERSION=$(node -e "console.log(require('./node_modules/isomorphic-ws/package.json').version)")
+python3 -c "
+import json, sys
+with open('$PLUGINS_DIR/package.json') as f:
+    d = json.load(f)
+d.setdefault('dependencies', {})['isomorphic-ws'] = sys.argv[1]
+d.pop('devDependencies', None)
+d.pop('scripts', None)
+with open('$PLUGINS_DIR/package.json', 'w') as f:
+    json.dump(d, f, indent=2)
+" "$ISOMORPHIC_WS_VERSION"
+
+pnpm --dir "$PLUGINS_DIR" install --prod
+```
+
+##### Step 3: Start the envtest Kubernetes cluster
+
+```sh
+export KUBEBUILDER_ASSETS=$(setup-envtest use -p path)
+
+envtest-start --users 1 /tmp/envtest-kubeconfig &
+ENVTEST_START_PID=$!
+
+while [ ! -f /tmp/envtest-kubeconfig ]; do sleep 1; done
+"$KUBEBUILDER_ASSETS/kubectl" --kubeconfig /tmp/envtest-kubeconfig get all | grep "service/kubernetes"
+```
+
+##### Step 4: Patch the test runner for headless operation
+
+Without a GPU, Chromium cannot produce frames for screenshots or video
+recording. The `@podman-desktop/tests-playwright` runner must be patched to
+skip these operations when the `NO_GPU` environment variable is set:
+
+```sh
+sed -i.bak '
+  /async startTracing()/{
+    N;N;N;N;N
+    s/screenshots: !0/screenshots: !process.env.NO_GPU/
+    s/}), await this.getPage().screenshot();/});\n\t\tif (!process.env.NO_GPU) await this.getPage().screenshot();/
+  }
+  /async screenshot(e) {/{
+    N
+    s/await this.getPage().screenshot(\(.*\));/if (!process.env.NO_GPU) await this.getPage().screenshot(\1);/
+  }
+  /recordVideo: a,/{
+    s/recordVideo: a,/recordVideo: process.env.NO_GPU ? undefined : a,/
+  }
+' node_modules/@podman-desktop/tests-playwright/dist/index.js
+```
+
+##### Step 5: Run the tests
+
+```sh
+cp /tmp/envtest-kubeconfig tests/resources/envtest-kubeconfig
+cp /tmp/user1-kubeconfig tests/resources/envtest-kubeconfig-user1
+
+NO_GPU=true \
+EXTENSION_PREINSTALLED=true \
+PODMAN_DESKTOP_BINARY="$(pwd)/tests/playwright/tests/PodmanDesktop/podman-desktop" \
+KUBEBUILDER_ASSETS="$KUBEBUILDER_ASSETS" \
+NODE_OPTIONS=--no-experimental-strip-types \
+pnpm test:e2e:integration
+```
+
+##### Step 6: Stop the cluster when done
+
+```sh
+kill $ENVTEST_START_PID
+```
+
+#### Restarting the tests
+
+**Quick restart** — only the cluster needs to be restarted: redo steps 3 and 5, keeping `EXTENSION_PREINSTALLED=true`.
+
+**Full clean restart** (e.g. after modifying extension sources) — after stopping the cluster, reset the Podman Desktop profile:
+
+```sh
+rm -rf tests/playwright/tests/playwright/
+```
+
+Then redo steps 2, 3, 4, and 5.
+
+#### Cleanup
+
+After stopping the cluster (step 6), remove all generated files:
+
+```sh
+rm -rf tests/playwright/tests/
+rm -f tests/resources/envtest-kubeconfig tests/resources/envtest-kubeconfig-user1
+rm -f /tmp/envtest-kubeconfig /tmp/user1-kubeconfig
+```
+
+#### Running Podman Desktop interactively with Playwright
+
+Instead of running the E2E test suite, you can launch Podman Desktop with the
+extension loaded and interact with it programmatically through Playwright's CDP
+connection. This is useful for manual exploration, AI-assisted interaction (e.g.
+with a Playwright MCP server), or ad-hoc scripting.
+
+The pre-requisites and steps 1–3 above must be completed first (Podman Desktop
+binary installed, extension plugin built, envtest cluster running).
+
+##### Verify shared library dependencies
+
+Before launching Podman Desktop, check that all shared libraries required by the
+Electron binary are available:
+
+```sh
+ldd tests/playwright/tests/PodmanDesktop/podman-desktop.real | grep "not found"
+```
+
+If any libraries are missing, install them (see the pre-requisites section above
+for the package list).
+
+##### Start Xvfb and D-Bus
+
+```sh
+Xvfb :99 -screen 0 1920x1080x24 &
+sudo mkdir -p /run/dbus
+sudo dbus-daemon --system --fork
+```
+
+##### Create the Podman Desktop profile
+
+```sh
+CUSTOM_FOLDER="$(pwd)/tests/playwright/tests/playwright/output/kubernetes-dashboard-tests"
+mkdir -p "$CUSTOM_FOLDER/configuration"
+
+cat > "$CUSTOM_FOLDER/configuration/settings.json" << 'EOF'
+{
+  "extensions.disabled": [
+    "podman-desktop.compose",
+    "podman-desktop.docker",
+    "podman-desktop.kind",
+    "podman-desktop.kube-context",
+    "podman-desktop.kubectl-cli",
+    "podman-desktop.lima",
+    "podman-desktop.minikube",
+    "podman-desktop.onboarding",
+    "podman-desktop.podman"
+  ]
+}
+EOF
+```
+
+##### Copy the kubeconfig
+
+```sh
+mkdir -p ~/.kube
+cp /tmp/envtest-kubeconfig ~/.kube/config
+```
+
+##### Launch Podman Desktop with remote debugging
+
+```sh
+DISPLAY=:99 \
+PODMAN_DESKTOP_HOME_DIR="$CUSTOM_FOLDER" \
+XDG_SESSION_TYPE=x11 \
+$(pwd)/tests/playwright/tests/PodmanDesktop/podman-desktop \
+  --remote-debugging-port=9222 &
+```
+
+Wait a few seconds for the application to start. The extension will be
+activated automatically from the `plugins/extension/` directory inside the
+profile. You can verify the CDP endpoint is available:
+
+```sh
+curl -s http://127.0.0.1:9222/json
+```
+
+##### Connect with Playwright
+
+You can now connect to the running Electron application via CDP, for example
+from a Node.js script:
+
+```js
+const { chromium } = require('playwright');
+
+const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
+const pages = browser.contexts()[0].pages();
+// pages[0] is the Podman Desktop shell
+// pages[1] is the Kubernetes Dashboard extension webview (available after
+//          clicking the "Kubernetes" link in the sidebar)
+const page = pages[0];
+
+// interact with the application
+await page.screenshot({ path: 'screenshot.png' });
+
+await browser.close();
+```
+
+Or, if you are using a Playwright MCP server, it can connect to the same
+`http://127.0.0.1:9222` CDP endpoint. After clicking the **Kubernetes** link
+in the sidebar, the extension webview opens as a separate tab (tab index 1) —
+switch to it to interact with the Kubernetes Dashboard.
+
+---
+
 ### On macOS (Apple Silicon)
 
 #### Pre-requisites
